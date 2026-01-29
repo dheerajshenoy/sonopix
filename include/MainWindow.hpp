@@ -2,6 +2,9 @@
 
 #include "thirdparty/argparse.hpp"
 
+#include "AudioEngine.hpp"
+#include "Sonifier.hpp"
+
 #include <SFML/Graphics.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/Text.hpp>
@@ -33,6 +36,8 @@ private:
     void render() noexcept;
     void move_cursor() noexcept;
 
+    AudioEngine m_audio_engine;
+    Sonifier m_sonifier;
 
     std::string m_window_title{"SFML Window"},
         m_input_file{""};
