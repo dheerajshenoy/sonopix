@@ -13,6 +13,10 @@ add_executable(sonify
     src/MainWindow.cpp
 )
 
+add_compile_definitions(APP_VERSION="${PROJECT_VERSION}"
+    APP_NAME="${PROJECT_NAME}"
+)
+
 target_include_directories(sonify PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 
