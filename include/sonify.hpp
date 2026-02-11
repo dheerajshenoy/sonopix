@@ -149,14 +149,12 @@ sine_frequency()
 }
 
 inline SonifyFunc
-sine_xy()
+sine()
 {
     float phase = 0.0f;
 
     return [phase](const SonifyContext &ctx) mutable -> float
     {
-        // Map y to frequency and x to amplitude
-
         float b = std::clamp(ctx.brightness, 0.0f, 1.0f);
 
         float freq = ctx.fmin + b * (ctx.fmax - ctx.fmin);
@@ -179,8 +177,6 @@ sine_xy()
                 break;
         }
 
-        float amp = static_cast<float>(ctx.x) / static_cast<float>(ctx.width);
-
         const float two_pi = 6.28318530718f;
 
         phase += two_pi * freq / ctx.sample_rate;
@@ -188,7 +184,7 @@ sine_xy()
         if (phase >= two_pi)
             phase -= two_pi;
 
-        return amp * std::sin(phase);
+        return b * std::sin(phase);
     };
 }
 
@@ -386,7 +382,6 @@ public:
                         "Number of channels is not supported");
                 }
 
-                v = std::clamp(v, 0.0f, 1.0f);
                 column_sum += v;
             }
             const float avg = column_sum / static_cast<float>(h);
@@ -453,7 +448,6 @@ public:
                         "Number of channels is not supported");
                 }
 
-                v = std::clamp(v, 0.0f, 1.0f);
                 column_sum += v;
             }
             const float avg = column_sum / static_cast<float>(h);
@@ -489,7 +483,7 @@ public:
         const int samples_per_column
             = std::max(1, static_cast<int>(m_sample_rate * m_secs_per_unit));
 
-        m_audio_data.reserve(static_cast<std::size_t>(w)
+        m_audio_data.reserve(static_cast<std::size_t>(h)
                              * static_cast<std::size_t>(samples_per_column));
 
         for (int y = 0; y < h; ++y)
@@ -520,7 +514,6 @@ public:
                         "Number of channels is not supported");
                 }
 
-                v = std::clamp(v, 0.0f, 1.0f);
                 row_sum += v;
             }
 
@@ -558,7 +551,7 @@ public:
         const int samples_per_column
             = std::max(1, static_cast<int>(m_sample_rate * m_secs_per_unit));
 
-        m_audio_data.reserve(static_cast<std::size_t>(w)
+        m_audio_data.reserve(static_cast<std::size_t>(h)
                              * static_cast<std::size_t>(samples_per_column));
 
         for (int y = h - 1; y >= 0; --y)
@@ -589,7 +582,6 @@ public:
                         "Number of channels is not supported");
                 }
 
-                v = std::clamp(v, 0.0f, 1.0f);
                 row_sum += v;
             }
 
@@ -621,6 +613,6 @@ private:
     float m_secs_per_unit{0.001f};
     FreqMap m_freq_map;
     std::vector<float> m_audio_data{};
-    SonifyFunc m_sonify_func{sonify_functions::sine_xy()};
+    SonifyFunc m_sonify_func{sonify_functions::sine()};
 };
 }; // namespace sonify
