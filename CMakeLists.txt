@@ -12,7 +12,6 @@ add_executable(${PROJECT_NAME}
     src/main.cpp
     src/MainWindow.cpp
     src/AudioEngine.cpp
-    src/Sonifier.cpp
 )
 
 add_compile_definitions(APP_VERSION="${PROJECT_VERSION}"
@@ -22,6 +21,10 @@ add_compile_definitions(APP_VERSION="${PROJECT_VERSION}"
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${SFML_INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${SFML_LIBRARIES})
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${SFML_INCLUDE_DIRS})
+
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    ${SFML_LIBRARIES}
+)
 
