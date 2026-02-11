@@ -291,6 +291,10 @@ void
 MainWindow::update() noexcept
 {
     move_cursor();
+    if (!m_audio_engine->is_playing())
+    {
+        m_paused = true;
+    }
 }
 
 void
