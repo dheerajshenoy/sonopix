@@ -1,5 +1,5 @@
 #include "MainWindow.hpp"
-#include "sonify.hpp"
+#include "SonifyEngine.hpp"
 #include "thirdparty/argparse.hpp"
 
 #include <SFML/Graphics.hpp>
@@ -21,6 +21,12 @@ init_args(argparse::ArgumentParser &parser)
         .default_value(false)
         .implicit_value(true)
         .flag();
+
+    parser.add_argument("--script")
+        .help("Lua script to execute (can be used to automate sonification).")
+        .default_value(std::string(""))
+        .nargs(1)
+        .metavar("FILE");
 
     parser.add_argument("--verbose")
         .help("Enable verbose output for debugging.")
@@ -107,7 +113,8 @@ init_args(argparse::ArgumentParser &parser)
 int
 main(int argc, char *argv[])
 {
-    argparse::ArgumentParser parser(APP_NAME, APP_VERSION);
+    argparse::ArgumentParser parser(APP_NAME, APP_VERSION,
+                                    argparse::default_arguments::none);
     init_args(parser);
 
     try

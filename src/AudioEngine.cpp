@@ -1,6 +1,7 @@
 #include "AudioEngine.hpp"
 
-#include "sonify.hpp"
+#include "SonifyEngine.hpp"
+#include "utils.hpp"
 
 AudioEngine::AudioEngine(float sample_rate)
     : m_sample_rate(sample_rate), m_sound(m_sound_buffer)
@@ -45,11 +46,11 @@ AudioEngine::set_data(std::vector<float> &&audio_data)
 
     std::vector<sf::SoundChannel> channelMap = {sf::SoundChannel::Mono};
 
-    if (!m_sound_buffer.loadFromSamples(m_data.data(), m_data.size(), m_channel_count,
-                                        m_sample_rate, channelMap))
+    if (!m_sound_buffer.loadFromSamples(m_data.data(), m_data.size(),
+                                        m_channel_count, m_sample_rate,
+                                        channelMap))
     {
-        sonify::log("Unable to load samples from audio data",
-                    sonify::LogLevel::ERROR);
+        LOG("Unable to load samples from audio data", LogLevel::ERROR);
     }
 }
 

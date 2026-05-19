@@ -54,43 +54,6 @@ normalize_u8_data(const std::uint8_t *data, std::size_t size)
     return norm_data;
 }
 
-enum class LogLevel
-{
-    DEBUG = 0,
-    INFO,
-    WARNING,
-    ERROR
-};
-
-inline void
-log(std::string msg, LogLevel level = LogLevel::INFO) noexcept
-{
-    std::string prefix;
-    switch (level)
-    {
-        case LogLevel::DEBUG:
-            prefix = "DEBUG";
-            break;
-
-        case LogLevel::INFO:
-            prefix = "INFO";
-            break;
-
-        case LogLevel::WARNING:
-            prefix = "WARNING";
-            break;
-
-        case LogLevel::ERROR:
-            prefix = "ERROR";
-            break;
-
-        default:
-            prefix = "UNKNOWN";
-            break;
-    }
-    std::println("{}: {}", prefix, msg);
-}
-
 /* Normalized image data representation */
 struct RawImage
 {
@@ -190,11 +153,11 @@ sine()
 
 } // namespace sonify_functions
 
-class Sonify
+class SonifyEngine
 {
 
 public:
-    Sonify() = default;
+    SonifyEngine() = default;
 
     inline void set_raw_image(int w, int h, int ch, int stride,
                               std::vector<float> &&data) noexcept
@@ -607,12 +570,12 @@ public:
     }
 
 private:
-    float m_sample_rate{44100.0f};
+    float m_sample_rate = 44100.0f;
     RawImage m_img;
-    Direction m_direction{Direction::LEFT_TO_RIGHT};
-    float m_secs_per_unit{0.001f};
+    Direction m_direction = Direction::LEFT_TO_RIGHT;
+    float m_secs_per_unit = 0.001f;
     FreqMap m_freq_map;
-    std::vector<float> m_audio_data{};
-    SonifyFunc m_sonify_func{sonify_functions::sine()};
+    std::vector<float> m_audio_data;
+    SonifyFunc m_sonify_func = sonify_functions::sine();
 };
 }; // namespace sonify

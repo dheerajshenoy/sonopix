@@ -7,6 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SFML REQUIRED sfml-all)
+pkg_check_modules(Lua REQUIRED lua>5.4)
 
 add_executable(${PROJECT_NAME}
     src/main.cpp
@@ -22,9 +23,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${SFML_INCLUDE_DIRS})
+    ${SFML_INCLUDE_DIRS}
+    ${Lua_INCLUDE_DIRS}
+)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ${SFML_LIBRARIES}
+    ${Lua_LIBRARIES}
 )
 

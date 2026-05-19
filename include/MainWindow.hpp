@@ -1,19 +1,21 @@
 #pragma once
 
 #include "AudioEngine.hpp"
-#include "sonify.hpp"
+#include "SonifyEngine.hpp"
 #include "thirdparty/argparse.hpp"
 
 #include <SFML/Graphics.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Window.hpp>
+#include <lua.hpp>
 
 class MainWindow
 {
 
 public:
     MainWindow();
+    ~MainWindow();
     void main_loop();
     void read_args(const argparse::ArgumentParser &parser);
 
@@ -25,7 +27,9 @@ private:
     void pause() noexcept;
     void stop() noexcept;
     void toggle_pause() noexcept;
-    void sonify();
+    bool sonify();
+    void init_lua(const std::string &script_file);
+    void init_lua_sonopix() noexcept;
 
     /* Events */
     void handle_events() noexcept;
@@ -40,10 +44,10 @@ private:
     void init_cursor(float scale                 = 1.0f,
                      sf::Vector2<float> position = {}) noexcept;
 
-    AudioEngine *m_audio_engine{nullptr};
-    std::string m_window_title{"SFML Window"}, m_input_file{""};
-
-    sf::Vector2u m_window_size{800, 600};
+    AudioEngine *m_audio_engine = nullptr;
+    std::string m_window_title  = "Sonopix";
+    std::string m_input_file    = "";
+    sf::Vector2u m_window_size  = {800, 600};
     sf::Vector2u m_win_size;
     sf::Vector2u m_tex_size;
     sf::RenderWindow m_window;
@@ -51,11 +55,12 @@ private:
     sf::Sprite m_sprite;
     sf::RectangleShape m_cursor_rect;
     sf::Clock m_clock;
-    float m_last_time{0.0f};
 
-    sonify::Sonify m_sonifier;
-    bool m_paused{true};
-    bool m_verbose{false};
-    float m_cursor_width{5.0};
-    sonify::Direction m_direction{sonify::Direction::LEFT_TO_RIGHT};
+    sonify::SonifyEngine *m_sonifier = nullptr;
+    float m_last_time                = 0.0f;
+    bool m_paused                    = true;
+    bool m_verbose                   = false;
+    float m_cursor_width             = 5.0;
+    sonify::Direction m_direction    = sonify::Direction::LEFT_TO_RIGHT;
+    lua_State *m_L                   = nullptr;
 };

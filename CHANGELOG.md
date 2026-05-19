@@ -9,3 +9,4 @@
     - LEFT TO RIGHT
     - RIGHT TO LEFT
 - Image Resizing
+- Add lua scripting support

@@ -1,13 +1,21 @@
 #include "MainWindow.hpp"
 
-#include "sonify.hpp"
+#include "lua/init.cpp"
+#include "utils.hpp"
 
 #include <print>
 
 MainWindow::MainWindow() : m_sprite(m_tex)
 {
-    m_window = sf::RenderWindow(sf::VideoMode(m_window_size), m_window_title);
-    m_audio_engine = new AudioEngine(m_sonifier.sample_rate());
+    m_sonifier = new sonify::SonifyEngine();
+    m_window   = sf::RenderWindow(sf::VideoMode(m_window_size), m_window_title);
+    m_audio_engine = new AudioEngine(m_sonifier->sample_rate());
+}
+
+MainWindow::~MainWindow()
+{
+    delete m_sonifier;
+    delete m_audio_engine;
 }
 
 void
@@ -16,7 +24,13 @@ MainWindow::read_args(const argparse::ArgumentParser &parser)
     if (parser.is_used("version"))
     {
         std::print("%s - version %s", APP_NAME, APP_VERSION);
-        return;
+        exit(0);
+    }
+
+    if (parser.is_used("help"))
+    {
+        std::println("{}", parser.help().str());
+        exit(0);
     }
 
     if (parser.is_used("verbose"))
@@ -25,14 +39,28 @@ MainWindow::read_args(const argparse::ArgumentParser &parser)
         assert(0 && "Verbose logging not implemented yet");
     }
 
+    if (parser.is_used("script"))
+    {
+        try
+        {
+            std::string script_file = parser.get<std::string>("script");
+            init_lua(script_file);
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << e.what() << std::endl;
+            exit(1);
+        }
+    }
+
     if (parser.is_used("secs-per-unit"))
     {
-        m_sonifier.set_secs_per_unit(parser.get<float>("secs-per-unit"));
+        m_sonifier->set_secs_per_unit(parser.get<float>("secs-per-unit"));
     }
 
     if (parser.is_used("sample-rate"))
     {
-        m_sonifier.set_sample_rate(parser.get<float>("sample-rate"));
+        m_sonifier->set_sample_rate(parser.get<float>("sample-rate"));
     }
 
     if (parser.is_used("channels"))
@@ -54,13 +82,13 @@ MainWindow::read_args(const argparse::ArgumentParser &parser)
         else
             throw std::runtime_error("Invalid frequency scale: " + scale_str);
 
-        m_sonifier.set_freq_scale(scale);
+        m_sonifier->set_freq_scale(scale);
     }
 
     if (parser.is_used("frequency"))
     {
         auto [fmin, fmax] = parser.get<std::pair<float, float>>("frequency");
-        m_sonifier.set_freq_range(fmin, fmax);
+        m_sonifier->set_freq_range(fmin, fmax);
     }
 
     if (parser.is_used("input"))
@@ -104,7 +132,7 @@ MainWindow::read_args(const argparse::ArgumentParser &parser)
             throw std::runtime_error("Invalid direction: " + dir_str);
 
         m_direction = direction;
-        m_sonifier.set_direction(direction);
+        m_sonifier->set_direction(direction);
     }
 
     if (parser.is_used("cursor-width"))
@@ -117,19 +145,12 @@ void
 MainWindow::load_image(sf::Image &image, const std::string &filename)
 {
     std::vector<std::uint8_t> data;
-    try
-    {
-    }
-    catch (const std::exception &e)
-    {
-        throw std::runtime_error(std::string("Failed to load image: ")
-                                 + e.what());
-    }
 
-    // if (!image.loadFromMemory(data.data(), data.size()))
-    // {
-    //     throw std::runtime_error("Failed to load image from memory");
-    // }
+    std::string fixed_filename = filename;
+    // Replace "~" with the user's home directory if it exists
+    fixed_filename = fixed_filename.replace(
+        0, 1, std::getenv("HOME") ? std::getenv("HOME") : "~");
+
     if (!image.loadFromFile(filename))
     {
         throw std::runtime_error("Failed to load image from file: " + filename);
@@ -165,7 +186,7 @@ MainWindow::open_file(const std::string &filename)
     auto img_data = sonify::normalize_u8_data(
         data, w * h * channels); // normalized to [0 .. 1]
 
-    m_sonifier.set_raw_image(w, h, channels, w * 4, std::move(img_data));
+    m_sonifier->set_raw_image(w, h, channels, w * 4, std::move(img_data));
 }
 
 void
@@ -197,9 +218,8 @@ MainWindow::handle_resize_event(const sf::Event::Resized *e) noexcept
     const float oldScale         = m_sprite.getScale().x;
     const sf::Vector2f oldOrigin = m_sprite.getPosition();
     const sf::Vector2f cursorPos = m_cursor_rect.getPosition();
-    const sf::Vector2f relOffset = oldScale > 0.f
-                                       ? (cursorPos - oldOrigin) / oldScale
-                                       : sf::Vector2f{};
+    const sf::Vector2f relOffset
+        = oldScale > 0.f ? (cursorPos - oldOrigin) / oldScale : sf::Vector2f{};
 
     float scale = rescale_recenter_image();
 
@@ -224,17 +244,21 @@ MainWindow::handle_keypress_event(const sf::Event::KeyPressed *e) noexcept
     }
 }
 
-void
+bool
 MainWindow::sonify()
 {
-    m_sonifier.sonify();
+    m_sonifier->sonify();
 
-    auto audio_data = m_sonifier.const_audio();
+    auto audio_data = m_sonifier->const_audio();
     if (audio_data.empty())
-        throw std::runtime_error("Audio data is empty!");
+    {
+        std::cerr << "SonifyEngine returned empty audio data\n";
+        return false;
+    }
 
     m_audio_engine->set_data(std::move(audio_data));
-    sonify::log("Sonification complete");
+
+    return true;
 }
 
 float
@@ -362,8 +386,8 @@ MainWindow::move_cursor() noexcept
         case sonify::Direction::RIGHT_TO_LEFT:
         {
             const int samples_per_column
-                = std::max(1, static_cast<int>(m_sonifier.sample_rate()
-                                               * m_sonifier.secs_per_unit()));
+                = std::max(1, static_cast<int>(m_sonifier->sample_rate()
+                                               * m_sonifier->secs_per_unit()));
 
             const int w = static_cast<int>(m_tex_size.x);
 
@@ -395,8 +419,8 @@ MainWindow::move_cursor() noexcept
         case sonify::Direction::BOTTOM_TO_TOP:
         {
             const int samples_per_row
-                = std::max(1, static_cast<int>(m_sonifier.sample_rate()
-                                               * m_sonifier.secs_per_unit()));
+                = std::max(1, static_cast<int>(m_sonifier->sample_rate()
+                                               * m_sonifier->secs_per_unit()));
 
             const int h = static_cast<int>(m_tex_size.y);
 
