@@ -154,7 +154,8 @@ MainWindow::open_file(const std::string &filename)
         throw std::runtime_error("SFML: invalid image dimensions");
     }
 
-    rescale_recenter_image();
+    float scale = rescale_recenter_image();
+    init_cursor(scale);
 
     const std::uint8_t *data = img.getPixelsPtr(); // RGBA8, size = w*h*4
     if (!data)
@@ -191,7 +192,20 @@ MainWindow::handle_resize_event(const sf::Event::Resized *e) noexcept
 
     m_tex_size = m_tex.getSize();
     m_win_size = m_window.getSize();
-    rescale_recenter_image();
+
+    // Save cursor offset relative to old sprite origin before rescaling
+    const float oldScale         = m_sprite.getScale().x;
+    const sf::Vector2f oldOrigin = m_sprite.getPosition();
+    const sf::Vector2f cursorPos = m_cursor_rect.getPosition();
+    const sf::Vector2f relOffset = oldScale > 0.f
+                                       ? (cursorPos - oldOrigin) / oldScale
+                                       : sf::Vector2f{};
+
+    float scale = rescale_recenter_image();
+
+    // Reapply cursor at same image-space offset under new scale
+    const sf::Vector2f newOrigin = m_sprite.getPosition();
+    init_cursor(scale, newOrigin + relOffset * scale);
 }
 
 void
@@ -223,7 +237,7 @@ MainWindow::sonify()
     sonify::log("Sonification complete");
 }
 
-void
+float
 MainWindow::rescale_recenter_image() noexcept
 {
     const float scaleX
@@ -234,12 +248,11 @@ MainWindow::rescale_recenter_image() noexcept
     m_sprite.setScale({scale, scale});
     m_sprite.setPosition({(m_win_size.x - m_tex_size.x * scale) * 0.5f,
                           (m_win_size.y - m_tex_size.y * scale) * 0.5f});
-
-    init_cursor(scale);
+    return scale;
 };
 
 void
-MainWindow::init_cursor(float scale) noexcept
+MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
 {
     m_cursor_rect.setFillColor(sf::Color(255, 0, 0, 128));
 
@@ -247,17 +260,23 @@ MainWindow::init_cursor(float scale) noexcept
     {
         case sonify::Direction::LEFT_TO_RIGHT:
         case sonify::Direction::RIGHT_TO_LEFT:
+        {
             m_cursor_rect.setSize({m_cursor_width, m_tex_size.y * scale});
-            m_cursor_rect.setPosition(
-                {m_sprite.getPosition().x, m_sprite.getPosition().y});
-            break;
+            if (position == sf::Vector2<float>{})
+                position = m_sprite.getPosition();
+            m_cursor_rect.setPosition(position);
+        }
+        break;
 
         case sonify::Direction::TOP_TO_BOTTOM:
         case sonify::Direction::BOTTOM_TO_TOP:
+        {
             m_cursor_rect.setSize({m_tex_size.x * scale, m_cursor_width});
-            m_cursor_rect.setPosition(
-                {m_sprite.getPosition().x, m_sprite.getPosition().y});
-            break;
+            if (position == sf::Vector2<float>{})
+                position = m_sprite.getPosition();
+            m_cursor_rect.setPosition(position);
+        }
+        break;
 
         case sonify::Direction::CIRCLE_OUTWARDS:
         case sonify::Direction::CIRCLE_INWARDS:

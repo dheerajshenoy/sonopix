@@ -32,12 +32,13 @@ private:
     void handle_resize_event(const sf::Event::Resized *e) noexcept;
     void handle_keypress_event(const sf::Event::KeyPressed *e) noexcept;
 
-    void rescale_recenter_image() noexcept;
+    float rescale_recenter_image() noexcept;
     void render() noexcept;
     void update() noexcept;
     void move_cursor() noexcept;
 
-    void init_cursor(float scale = 1.0f) noexcept;
+    void init_cursor(float scale                 = 1.0f,
+                     sf::Vector2<float> position = {}) noexcept;
 
     AudioEngine *m_audio_engine{nullptr};
     std::string m_window_title{"SFML Window"}, m_input_file{""};
