@@ -2,9 +2,7 @@
 
 #include <cmath>
 #include <functional>
-#include <print>
 #include <stdexcept>
-#include <string>
 #include <vector>
 
 namespace sonify

@@ -24,7 +24,6 @@ public:
     }
 
 private:
-    void convert_to_int16();
     std::vector<float> m_dataf;
     std::vector<std::int16_t> m_data;
     sf::SoundBuffer m_sound_buffer;

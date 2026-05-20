@@ -1,41 +1,28 @@
 #pragma once
 
-#include <print>
-#include <string>
+#include <algorithm>
+#include <cstdint>
+#include <vector>
 
-enum class LogLevel
+template <typename T>
+static inline std::vector<std::int16_t>
+convert_to_int16(const std::vector<T> &in)
 {
-    DEBUG = 0,
-    INFO,
-    WARNING,
-    ERROR
-};
+    // m_data = std::vector<std::int16_t>(m_dataf.size());
+    //
+    // for (int i = 0; i < m_dataf.size(); i++)
+    // {
+    //     float clamped = std::clamp(m_dataf[i], -1.0f, 1.0f);
+    //     m_data[i]     = static_cast<std::int16_t>(clamped * 32767);
+    // }
 
-inline void
-LOG(std::string msg, LogLevel level = LogLevel::INFO) noexcept
-{
-    std::string prefix;
-    switch (level)
+    std::vector<std::int16_t> out(in.size());
+
+    std::transform(in.begin(), in.end(), out.begin(), [](T sample)
     {
-        case LogLevel::DEBUG:
-            prefix = "DEBUG";
-            break;
+        float clamped = std::clamp(sample, -1.0f, 1.0f);
+        return static_cast<std::int16_t>(clamped * 32767);
+    });
 
-        case LogLevel::INFO:
-            prefix = "INFO";
-            break;
-
-        case LogLevel::WARNING:
-            prefix = "WARNING";
-            break;
-
-        case LogLevel::ERROR:
-            prefix = "ERROR";
-            break;
-
-        default:
-            prefix = "UNKNOWN";
-            break;
-    }
-    std::println("{}: {}", prefix, msg);
+    return out;
 }

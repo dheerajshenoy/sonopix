@@ -24,6 +24,30 @@ public:
         return m_sonifier;
     }
 
+    inline void set_direction(sonify::Direction direction) noexcept
+    {
+        m_direction = direction;
+        m_sonifier->set_direction(direction);
+    }
+
+    inline sonify::Direction direction() const noexcept
+    {
+        return m_direction;
+    }
+
+    inline void set_cursor_width(float w) noexcept
+    {
+        m_cursor_width = w;
+    }
+
+    inline float cursor_width() const noexcept
+    {
+        return m_cursor_width;
+    }
+
+    void set_cursor_color(const std::string &color_str) noexcept;
+    std::string cursor_color() const noexcept;
+
 private:
     void load_image(sf::Image &img, const std::string &filename);
     /* Interactive methods */
@@ -68,6 +92,7 @@ private:
     bool m_paused                    = true;
     bool m_verbose                   = false;
     float m_cursor_width             = 5.0;
+    sf::Color m_cursor_color         = sf::Color(255, 0, 0, 128);
     sonify::Direction m_direction    = sonify::Direction::LEFT_TO_RIGHT;
     lua_State *m_L                   = nullptr;
 };

@@ -1,6 +1,7 @@
 #include "AudioEngine.hpp"
 
 #include "SonifyEngine.hpp"
+#include "logging.hpp"
 #include "utils.hpp"
 
 AudioEngine::AudioEngine(float sample_rate)
@@ -26,23 +27,13 @@ AudioEngine::stop() noexcept
     m_sound.stop();
 }
 
-void
-AudioEngine::convert_to_int16()
-{
-    m_data = std::vector<std::int16_t>(m_dataf.size());
-
-    for (int i = 0; i < m_dataf.size(); i++)
-    {
-        float clamped = std::clamp(m_dataf[i], -1.0f, 1.0f);
-        m_data[i]     = static_cast<std::int16_t>(clamped * 32767);
-    }
-}
-
+// Sets the audio data for the engine. The input is a vector of floats
+// representing audio samples.
 void
 AudioEngine::set_data(std::vector<float> &&audio_data)
 {
     m_dataf = std::move(audio_data);
-    convert_to_int16();
+    m_data  = convert_to_int16(m_dataf);
 
     std::vector<sf::SoundChannel> channelMap = {sf::SoundChannel::Mono};
 
@@ -54,6 +45,7 @@ AudioEngine::set_data(std::vector<float> &&audio_data)
     }
 }
 
+// Returns the current sample index based on the playing offset of the sound.
 const std::size_t
 AudioEngine::sample_index() const noexcept
 {

@@ -278,7 +278,7 @@ MainWindow::rescale_recenter_image() noexcept
 void
 MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
 {
-    m_cursor_rect.setFillColor(sf::Color(255, 0, 0, 128));
+    m_cursor_rect.setFillColor(m_cursor_color);
 
     switch (m_direction)
     {
@@ -452,4 +452,24 @@ MainWindow::move_cursor() noexcept
         case sonify::Direction::CIRCLE_INWARDS:
             break;
     }
+}
+
+std::string
+MainWindow::cursor_color() const noexcept
+{
+    char buf[10];
+    std::snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X",
+                  m_cursor_color.r, m_cursor_color.g,
+                  m_cursor_color.b, m_cursor_color.a);
+    return std::string(buf);
+}
+
+void
+MainWindow::set_cursor_color(const std::string &color_str) noexcept
+{
+    std::string hex = color_str.substr(1);
+    if (hex.length() == 6)
+        hex += "FF";
+    m_cursor_color = sf::Color(std::stoul(hex, nullptr, 16));
+    m_cursor_rect.setFillColor(m_cursor_color);
 }

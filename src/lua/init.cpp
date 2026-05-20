@@ -175,7 +175,7 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         else
             return luaL_error(L, "Invalid direction: %s", dir_str);
 
-        sonifier->set_direction(direction);
+        window->set_direction(direction);
         return 0;
     }
 
@@ -189,6 +189,42 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         return 0;
     }
 
+    // sonopix.opts.frequency_range
+    if (strcmp(key, "frequency_range") == 0)
+    {
+        if (!lua_istable(L, 3))
+            return luaL_error(L,
+                              "frequency_range must be a table {fmin, fmax}");
+        lua_rawgeti(L, 3, 1);
+        lua_rawgeti(L, 3, 2);
+        float fmin = static_cast<float>(luaL_checknumber(L, -2));
+        float fmax = static_cast<float>(luaL_checknumber(L, -1));
+        lua_pop(L, 2);
+        if (fmin <= 0.0f || fmax <= fmin)
+            return luaL_error(L, "frequency_range requires 0 < fmin < fmax");
+        sonifier->set_freq_range(fmin, fmax);
+        return 0;
+    }
+
+    // sonopix.opts.cursor = { ... }  — forward each key to the cursor sub-table
+    if (strcmp(key, "cursor") == 0)
+    {
+        if (!lua_istable(L, 3))
+            return luaL_error(L, "cursor must be a table");
+        lua_getfield(L, LUA_REGISTRYINDEX,
+                     "sonopix_cursor_opts"); // [4] = cursor opts
+        lua_pushnil(L);
+        while (lua_next(L, 3) != 0)
+        {
+            lua_pushvalue(L, -2); // copy k
+            lua_pushvalue(L, -2); // copy v
+            lua_settable(L,
+                         4); // cursor_opts[k] = v → triggers cursor __newindex
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
     lua_pushvalue(L, 2);
     lua_pushvalue(L, 3);
     lua_rawset(L, 1);
@@ -198,11 +234,99 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
 void
 MainWindow::init_lua_sonopix_opts() noexcept
 {
-    lua_newtable(m_L); // sonopix.opts table
+    // --- cursor sub-table ---
+    lua_newtable(m_L); // cursor opts table
+    lua_newtable(m_L); // cursor opts metatable
 
-    // Metatable for sonopix to expose options as a readable/writable
-    // property
-    lua_newtable(m_L); // metatable
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (key)
+        {
+
+            //  sonopix.opts.cursor.width
+            if (strcmp(key, "width") == 0)
+            {
+                MainWindow *window = static_cast<MainWindow *>(
+                    lua_touserdata(L, lua_upvalueindex(1)));
+                lua_pushnumber(L, window->cursor_width());
+                return 1;
+            }
+
+            // sonopix.opts.cursor.color
+            if (strcmp(key, "color") == 0)
+            {
+                MainWindow *window = static_cast<MainWindow *>(
+                    lua_touserdata(L, lua_upvalueindex(1)));
+                std::string color_str = window->cursor_color();
+                lua_pushstring(L, color_str.c_str());
+                return 1;
+            }
+        }
+
+        lua_pushvalue(L, 2);
+        lua_rawget(L, 1);
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "__index");
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        MainWindow *window
+            = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+
+        if (key)
+        {
+
+            //   sonopix.opts.cursor.width = number
+            if (strcmp(key, "width") == 0)
+            {
+                float w = static_cast<float>(luaL_checknumber(L, 3));
+                if (w <= 0.0f)
+                    return luaL_error(L, "cursor.width must be positive");
+                window->set_cursor_width(w);
+                return 0;
+            }
+
+            // sonopix.opts.cursor.color = "#RRGGBB" or "#RRGGBBAA"
+            else if (strcmp(key, "color") == 0)
+            {
+                const char *color_str = luaL_checkstring(L, 3);
+
+                if (!color_str)
+                    return luaL_error(L, "cursor.color must be a string");
+
+                if (color_str[0] != '#'
+                    || (strlen(color_str) != 7 && strlen(color_str) != 9))
+                {
+                    return luaL_error(
+                        L,
+                        "cursor.color must be in format #RRGGBB or #RRGGBBAA");
+                }
+
+                window->set_cursor_color(color_str);
+                return 0;
+            }
+        }
+
+        lua_pushvalue(L, 2);
+        lua_pushvalue(L, 3);
+        lua_rawset(L, 1);
+        return 0;
+    }, 1);
+    lua_setfield(m_L, -2, "__newindex");
+
+    lua_setmetatable(m_L, -2); // attach metatable to cursor opts table
+    lua_pushvalue(m_L, -1);
+    lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_cursor_opts");
+    lua_pop(m_L, 1); // registry holds the ref; pop local copy
+
+    // --- opts table ---
+    lua_newtable(m_L); // sonopix.opts table
+    lua_newtable(m_L); // opts metatable
 
     // __index: intercept reads of known properties, fall back to rawget for
     // others
@@ -210,12 +334,17 @@ MainWindow::init_lua_sonopix_opts() noexcept
     lua_pushcclosure(m_L, [](lua_State *L) -> int
     {
         const char *key = lua_tostring(L, 2);
-        if (key && strcmp(key, "direction") == 0)
+        if (!key)
         {
-            MainWindow *window = static_cast<MainWindow *>(
-                lua_touserdata(L, lua_upvalueindex(1)));
+            lua_pushnil(L);
+            return 1;
+        }
+        MainWindow *window
+            = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        if (strcmp(key, "direction") == 0)
+        {
             const char *dir_str = nullptr;
-            switch (window->m_direction)
+            switch (window->direction())
             {
                 case sonify::Direction::LEFT_TO_RIGHT:
                     dir_str = "left-to-right";
@@ -241,6 +370,21 @@ MainWindow::init_lua_sonopix_opts() noexcept
             lua_pushstring(L, dir_str);
             return 1;
         }
+        if (strcmp(key, "frequency_range") == 0)
+        {
+            sonify::FreqMap fm = window->sonifier()->freq_map();
+            lua_newtable(L);
+            lua_pushnumber(L, fm.min);
+            lua_rawseti(L, -2, 1);
+            lua_pushnumber(L, fm.max);
+            lua_rawseti(L, -2, 2);
+            return 1;
+        }
+        if (strcmp(key, "cursor") == 0)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_cursor_opts");
+            return 1;
+        }
         lua_pushvalue(L, 2);
         lua_rawget(L, 1);
         return 1;
@@ -256,28 +400,47 @@ MainWindow::init_lua_sonopix_opts() noexcept
 
     lua_setmetatable(m_L, -2); // attach metatable to opts table
 
-    // Set sonopix.opts in the sonopix global table
-    lua_getglobal(m_L, "sonopix");
-    lua_insert(m_L, -2);           // move sonopix below opts on the stack
-    lua_setfield(m_L, -2, "opts"); // sonopix.opts = opts_table
+    // Store opts in registry so __index/__newindex on sonopix can reach it.
+    // We intentionally do NOT rawset "opts" into the sonopix table: if the key
+    // existed there, Lua would bypass __newindex on `sonopix.opts = {...}`.
+    lua_pushvalue(m_L, -1); // duplicate opts
+    lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_opts");
 
-    // Add __newindex to sonopix so `sonopix.opts = { ... }` applies each key
+    lua_getglobal(m_L, "sonopix");
+
     lua_newtable(m_L); // metatable for sonopix
+
+    // __index: return opts from registry; fall back to rawget for other keys
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (key && strcmp(key, "opts") == 0)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_opts");
+            return 1;
+        }
+        lua_pushvalue(L, 2);
+        lua_rawget(L, 1);
+        return 1;
+    }, 0);
+    lua_setfield(m_L, -2, "__index");
+
+    // __newindex: handle `sonopix.opts = { ... }` by forwarding each key
+    // through opts's own __newindex (which calls handle_lua_option)
     lua_pushcclosure(m_L, [](lua_State *L) -> int
     {
         const char *key = lua_tostring(L, 2);
         if (key && strcmp(key, "opts") == 0 && lua_istable(L, 3))
         {
-            lua_pushstring(L, "opts");
-            lua_rawget(L, 1);         // stack[4] = sonopix.opts
-            lua_pushnil(L);           // first key for lua_next
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_opts"); // [4] = opts
+            lua_pushnil(L);
             while (lua_next(L, 3) != 0)
             {
-                // stack: 4=opts, 5=k, 6=v
+                // stack: [4]=opts, [5]=k, [6]=v
                 lua_pushvalue(L, -2); // copy k
                 lua_pushvalue(L, -2); // copy v
-                lua_settable(L, 4);   // opts[k] = v, triggers opts __newindex
-                lua_pop(L, 1);        // pop v, keep k for next iteration
+                lua_settable(L, 4);   // opts[k] = v → triggers opts __newindex
+                lua_pop(L, 1);        // pop v, keep k for lua_next
             }
             return 0;
         }
@@ -285,6 +448,7 @@ MainWindow::init_lua_sonopix_opts() noexcept
         return 0;
     }, 0);
     lua_setfield(m_L, -2, "__newindex");
-    lua_setmetatable(m_L, -2); // attach to sonopix
-    lua_pop(m_L, 1);           // pop sonopix
+
+    lua_setmetatable(m_L, -2); // attach metatable to sonopix
+    lua_pop(m_L, 2);           // pop sonopix and opts
 }
