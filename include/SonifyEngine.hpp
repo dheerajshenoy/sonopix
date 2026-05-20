@@ -455,7 +455,6 @@ public:
 
             for (int x = 0; x < w; ++x)
             {
-
                 const int idx = y * stride + x * ch;
 
                 float v = 0.0f;

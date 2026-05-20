@@ -2,8 +2,8 @@
 sonopix = sonopix or {}
 sonopix.opts = {}
 
----@class TraversalMethod
-TraversalMethod = {
+---@class Directions
+Directions = {
     "left-to-right",
     "right-to-left",
     "top-to-bottom",
@@ -12,7 +12,12 @@ TraversalMethod = {
     "circle-outward",
 }
 
----@function Sets the traversal method for sonification in Sonopix
----@overload fun(): TraversalMethod Returns the current traversal method
----@param method TraversalMethod The traversal method to use
-sonopix.opts.traversal = function (method) end
+---@function Sets the direction for sonification in Sonopix
+---@overload fun(): Directions Returns the current direction for sonification
+---@param method Directions The direction method to use
+sonopix.opts.direction = function (method) end
+
+---@function Sets the seconds per unit for sonification in Sonopix
+---@overload fun(): number Returns the current seconds per unit
+---@param spu number The seconds per unit to use
+sonopix.opts.spu = function (spu) end

@@ -18,3 +18,11 @@ sonopix.play = function () end
 
 ---@function Stops the currently playing audio in Sonopix
 sonopix.stop = function () end
+
+---@function Checks if Sonopix is currently playing audio
+---@returns boolean Returns true if audio is currently playing, false otherwise
+sonopix.is_playing = function () end
+
+---@function Gets the current time position of the audio in Sonopix
+---@returns number Returns the current time position in seconds
+sonopix.current_time = function () end

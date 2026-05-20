@@ -19,6 +19,11 @@ public:
     void main_loop();
     void read_args(const argparse::ArgumentParser &parser);
 
+    inline sonify::SonifyEngine *sonifier() noexcept
+    {
+        return m_sonifier;
+    }
+
 private:
     void load_image(sf::Image &img, const std::string &filename);
     /* Interactive methods */
@@ -28,8 +33,11 @@ private:
     void stop() noexcept;
     void toggle_pause() noexcept;
     bool sonify();
+
+    // Lua integration
     void init_lua(const std::string &script_file);
     void init_lua_sonopix() noexcept;
+    void init_lua_sonopix_opts() noexcept;
 
     /* Events */
     void handle_events() noexcept;
@@ -57,7 +65,6 @@ private:
     sf::Clock m_clock;
 
     sonify::SonifyEngine *m_sonifier = nullptr;
-    float m_last_time                = 0.0f;
     bool m_paused                    = true;
     bool m_verbose                   = false;
     float m_cursor_width             = 5.0;
