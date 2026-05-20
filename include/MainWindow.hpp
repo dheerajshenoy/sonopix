@@ -8,6 +8,7 @@
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Window.hpp>
+#include <SFML/Window/ContextSettings.hpp>
 #include <lua.hpp>
 #include <memory>
 
@@ -54,6 +55,16 @@ public:
     void set_cursor_color(const std::string &color_str) noexcept;
     std::string cursor_color() const noexcept;
 
+    inline void set_antialiasing_level(unsigned int level) noexcept
+    {
+        m_context_settings.antiAliasingLevel = level;
+    }
+
+    inline unsigned int antialiasing_level() const noexcept
+    {
+        return m_context_settings.antiAliasingLevel;
+    }
+
 private:
     void load_image(sf::Image &img, const std::string &filename);
     /* Interactive methods */
@@ -81,6 +92,7 @@ private:
 
     void init_cursor(float scale                 = 1.0f,
                      sf::Vector2<float> position = {}) noexcept;
+    void create_window() noexcept;
 
     AudioEngine *m_audio_engine = nullptr;
     std::string m_window_title  = "Sonopix";
@@ -94,12 +106,13 @@ private:
     std::unique_ptr<sf::Shape> m_cursor;
     sf::Clock m_clock;
 
+    sf::ContextSettings m_context_settings;
     sonify::SonifyEngine *m_sonifier  = nullptr;
-    bool m_paused                     = true;
-    bool m_verbose                    = false;
-    float m_cursor_width              = 5.0;
-    sf::Color m_cursor_color          = sf::Color(255, 0, 0, 128);
-    sonify::Direction m_direction     = sonify::Direction::LEFT_TO_RIGHT;
-    std::size_t m_last_sample_index   = 0;
-    lua_State *m_L                    = nullptr;
+    bool m_paused                    = true;
+    bool m_verbose                   = false;
+    float m_cursor_width             = 5.0;
+    sf::Color m_cursor_color         = sf::Color(255, 0, 0, 128);
+    sonify::Direction m_direction    = sonify::Direction::LEFT_TO_RIGHT;
+    std::size_t m_last_sample_index  = 0;
+    lua_State *m_L                   = nullptr;
 };

@@ -3,17 +3,14 @@
 #include "lua/init.cpp"
 #include "utils.hpp"
 
+#include <SFML/Window/ContextSettings.hpp>
 #include <print>
 
 MainWindow::MainWindow() : m_sprite(m_tex)
 {
-    m_sonifier = new sonify::SonifyEngine();
-    sf::ContextSettings settings;
-    settings.antiAliasingLevel = 8;
-    settings.depthBits         = 24;
-    m_window
-        = sf::RenderWindow(sf::VideoMode(m_window_size), m_window_title,
-                           sf::Style::Default, sf::State::Windowed, settings);
+    m_context_settings.antiAliasingLevel = 8;
+    m_context_settings.depthBits         = 24;
+    m_sonifier     = new sonify::SonifyEngine();
     m_audio_engine = new AudioEngine();
 }
 
@@ -21,6 +18,14 @@ MainWindow::~MainWindow()
 {
     delete m_sonifier;
     delete m_audio_engine;
+}
+
+void
+MainWindow::create_window() noexcept
+{
+    m_window = sf::RenderWindow(sf::VideoMode(m_window_size), m_window_title,
+                                sf::Style::Default, sf::State::Windowed,
+                                m_context_settings);
 }
 
 void
@@ -332,6 +337,7 @@ MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
 void
 MainWindow::main_loop()
 {
+    create_window();
     while (m_window.isOpen())
     {
         handle_events();

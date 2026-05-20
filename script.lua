@@ -3,12 +3,13 @@ local s = sonopix
 local opened = s.open_file("/home/neo/Downloads/abstract-whale-png.png")
 if opened then
     s.opts = {
+
         direction = "circle-outwards",
         -- direction = "top-to-bottom",
         frequency = {
             min = 20,
             max = 20000,
-            scale = "exponential",
+            scale = "log",
         },
         cursor = {
             width = 5,

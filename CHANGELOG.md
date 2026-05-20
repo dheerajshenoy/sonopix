@@ -16,6 +16,10 @@
     - CIRCLE INWARDS
 - Image Resizing
 
+#### Window
+
+- `sonopix.opts.antialiasing_level` — sets MSAA sample count (0 = off, 2/4/8 typical); applied at window creation so it takes effect without recreating the window
+
 #### Lua scripting
 
 - Add lua scripting support

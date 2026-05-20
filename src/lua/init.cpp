@@ -189,6 +189,16 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         return 0;
     }
 
+    // sonopix.opts.antialiasing_level
+    if (strcmp(key, "antialiasing_level") == 0)
+    {
+        int level = static_cast<int>(luaL_checkinteger(L, 3));
+        if (level < 0)
+            return luaL_error(L, "antialiasing_level must be >= 0");
+        window->set_antialiasing_level(static_cast<unsigned int>(level));
+        return 0;
+    }
+
     // sonopix.opts.spu
     if (strcmp(key, "spu") == 0)
     {
@@ -534,6 +544,13 @@ MainWindow::init_lua_sonopix_opts() noexcept
         if (strcmp(key, "channel_count") == 0)
         {
             lua_pushinteger(L, window->audio_engine()->channel_count());
+            return 1;
+        }
+
+        // sonopix.opts.antialiasing_level
+        if (strcmp(key, "antialiasing_level") == 0)
+        {
+            lua_pushinteger(L, static_cast<lua_Integer>(window->antialiasing_level()));
             return 1;
         }
 
