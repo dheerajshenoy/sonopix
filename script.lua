@@ -2,7 +2,6 @@ local s = sonopix
 
 local opened = s.open_file("/home/neo/Downloads/abstract-whale-png.png")
 if opened then
-    print(s.opts.cursor.color)
     s.opts = {
         direction = "top-to-bottom",
         frequency_range = { 20, 20000 },
