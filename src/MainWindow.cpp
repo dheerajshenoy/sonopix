@@ -105,6 +105,8 @@ MainWindow::read_args(const argparse::ArgumentParser &parser)
     if (parser.is_used("output"))
     {
         m_output_file = parser.get<std::string>("output");
+        if (m_output_file.find('.') == std::string::npos)
+            m_output_file += ".wav";
     }
 
     if (parser.is_used("direction"))
@@ -484,6 +486,17 @@ void
 MainWindow::main_loop()
 {
     create_window();
+
+    if (!m_output_file.empty())
+    {
+        if (m_sonifier->raw_image().data.empty())
+        {
+            std::cerr << "error: --output requires --input\n";
+            return;
+        }
+        sonify(); // batch mode: sonify immediately, save when done, then close
+    }
+
     while (m_window.isOpen())
     {
         handle_events();

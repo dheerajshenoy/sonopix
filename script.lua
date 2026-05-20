@@ -25,6 +25,7 @@ local sonify_func = function(ctx)
 end
 
 s.opts = {
+    show_progress_bar = false,
     direction = "top-to-bottom",
     frequency = {
         min   = 20,

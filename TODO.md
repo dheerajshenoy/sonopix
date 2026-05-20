@@ -25,7 +25,7 @@
 
 - [ ] **File picker** — open image without restarting via a native dialog (keyboard shortcut `O`)
 - [ ] **Drag and drop** — drop an image onto the window to open it
-- [ ] **Playback progress bar** — thin bar at the bottom of the window showing current position
+- [x] **Playback progress bar** — thin bar at the bottom of the window showing current position
 - [ ] **Spectrum/waveform overlay** — show a live FFT or waveform of the generated audio
 - [ ] **Zoom and pan** — allow zooming into the image and panning while it plays
 - [ ] **Keybinding to re-open last file** — useful when iterating on a Lua script

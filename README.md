@@ -31,7 +31,7 @@ sonopix [options]
 | `-u, --secs-per-unit SPU` | Seconds of audio per column/row/ring/pixel |
 | `-r, --sample-rate RATE` | Audio sample rate (default: `44100`) |
 | `--cursor-width WIDTH` | Cursor width in pixels |
-| `-o, --output FILE` | Save sonified audio to file (WAV/OGG); exits after saving |
+| `-o, --output FILE` | Sonify and save to WAV/OGG, then exit; `.wav` appended if no extension given |
 | `--script FILE` | Lua script to run before the main loop |
 | `-v, --version` | Print version |
 
@@ -54,6 +54,17 @@ sonopix [options]
 |---|---|
 | `Space` | Play / pause |
 | `S` | Re-sonify with current settings |
+
+### Batch export
+
+Combine `--input` and `--output` to sonify headlessly and save without interaction:
+
+```sh
+sonopix -i image.png -o out.wav
+sonopix -i image.png -o out.ogg -d zigzag-h -u 0.0005 -f 20:8000 -s log
+```
+
+The window opens, sonifies in the background (title shows `[sonifying...]`), saves the file, then closes automatically.
 
 ## Lua scripting
 
