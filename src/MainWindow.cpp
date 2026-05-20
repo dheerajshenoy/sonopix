@@ -104,11 +104,7 @@ MainWindow::read_args(const argparse::ArgumentParser &parser)
 
     if (parser.is_used("output"))
     {
-        assert(0 && "Output file argument is not implemented yet");
-        std::string output_file = parser.get<std::string>("output");
-        std::print("Output file argument provided: {}\n", output_file);
-        std::print("Not implemented yet, but would save sonified audio to this "
-                   "file instead of playing it.\n");
+        m_output_file = parser.get<std::string>("output");
     }
 
     if (parser.is_used("direction"))
@@ -278,6 +274,14 @@ MainWindow::sonify()
     return true;
 }
 
+bool
+MainWindow::save_audio(const std::string &filename) noexcept
+{
+    if (m_sonify_future.valid())
+        m_sonify_future.wait();
+    return m_audio_engine->save(filename);
+}
+
 float
 MainWindow::rescale_recenter_image() noexcept
 {
@@ -373,6 +377,12 @@ MainWindow::update() noexcept
     {
         m_sonify_future = {};
         m_window.setTitle(m_window_title);
+
+        if (!m_output_file.empty())
+        {
+            save_audio(m_output_file);
+            m_window.close();
+        }
     }
 
     move_cursor();

@@ -63,6 +63,7 @@ public:
     void pause() noexcept;
     const std::size_t sample_index() const noexcept;
     void set_data(std::vector<float> &&audio_data, float sample_rate);
+    bool save(const std::string &filename) const noexcept;
 
 private:
     std::vector<float> m_dataf;

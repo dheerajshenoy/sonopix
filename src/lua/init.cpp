@@ -153,6 +153,18 @@ MainWindow::init_lua_sonopix() noexcept
     }, 1);
     lua_setfield(m_L, -2, "current_time");
 
+    // sonopix.save_audio(filepath) -> boolean
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *filepath = luaL_checkstring(L, 1);
+        MainWindow *window   = static_cast<MainWindow *>(
+            lua_touserdata(L, lua_upvalueindex(1)));
+        lua_pushboolean(L, window->save_audio(filepath) ? 1 : 0);
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "save_audio");
+
     // Set the sonopix table in the global namespace
     lua_setglobal(m_L, "sonopix");
 }

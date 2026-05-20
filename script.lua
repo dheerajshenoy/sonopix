@@ -1,9 +1,9 @@
 local s = sonopix
 
-local opened = s.open_file("/home/neo/Downloads/abstract-whale-png.png")
+local opened = s.open_file("/home/neo/Gits/wallpapers/WALLPAPER-2025042107243114.png")
 if opened then
     s.opts = {
-        direction = "top-to-bottom",
+        direction = "circle-outwards",
         frequency = {
             min   = 20,
             max   = 20000,

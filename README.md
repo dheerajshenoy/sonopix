@@ -31,6 +31,7 @@ sonopix [options]
 | `-u, --secs-per-unit SPU` | Seconds of audio per column/row/ring |
 | `-r, --sample-rate RATE` | Audio sample rate (default: `44100`) |
 | `--cursor-width WIDTH` | Cursor width in pixels |
+| `-o, --output FILE` | Save sonified audio to file (WAV/OGG); exits after saving |
 | `--script FILE` | Lua script to run before the main loop |
 | `-v, --version` | Print version |
 
@@ -55,6 +56,8 @@ sonopix [options]
 ## Lua scripting
 
 Pass a script with `--script file.lua`. The script runs before the main loop, so options set here apply before the first sonification.
+
+Key Lua functions: `open_file(path)`, `sonify()`, `play()`, `pause()`, `stop()`, `save_audio(path)`, `is_playing()`, `is_paused()`, `is_stopped()`, `current_time()`.
 
 ```lua
 sonopix.open_file("/path/to/image.png")

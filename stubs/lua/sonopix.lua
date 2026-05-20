@@ -37,3 +37,9 @@ sonopix.is_stopped = function() end
 ---Returns the current playback sample index
 ---@return number
 sonopix.current_time = function() end
+
+---Saves the sonified audio to a file. Blocks until sonification is complete if still running.
+---Supported formats: WAV, OGG.
+---@param filepath string Output file path
+---@return boolean success True if the file was written successfully
+sonopix.save_audio = function(filepath) end

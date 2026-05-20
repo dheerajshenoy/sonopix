@@ -46,6 +46,22 @@ AudioEngine::set_data(std::vector<float> &&audio_data, float sample_rate)
     }
 }
 
+bool
+AudioEngine::save(const std::string &filename) const noexcept
+{
+    if (m_sound_buffer.getSampleCount() == 0)
+    {
+        LOG("save: no audio data to write", LogLevel::ERROR);
+        return false;
+    }
+    if (!m_sound_buffer.saveToFile(filename))
+    {
+        LOG("save: failed to write " + filename, LogLevel::ERROR);
+        return false;
+    }
+    return true;
+}
+
 // Returns the current sample index based on the playing offset of the sound.
 const std::size_t
 AudioEngine::sample_index() const noexcept

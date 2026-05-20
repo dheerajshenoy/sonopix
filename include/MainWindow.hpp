@@ -53,6 +53,8 @@ public:
     void set_cursor_color(const std::string &color_str) noexcept;
     std::string cursor_color() const noexcept;
 
+    bool save_audio(const std::string &filename) noexcept;
+
     inline void set_antialiasing_level(unsigned int level) noexcept
     {
         m_context_settings.antiAliasingLevel = level;
@@ -96,6 +98,7 @@ private:
     std::unique_ptr<sonify::SonifyEngine> m_sonifier;
     std::string m_window_title       = "Sonopix";
     std::string m_input_file         = "";
+    std::string m_output_file        = "";
     sf::Vector2u m_window_size       = {800, 600};
     sf::Vector2u m_win_size;
     sf::Vector2u m_tex_size;

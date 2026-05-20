@@ -33,6 +33,11 @@
     - Supports both inline (`sonopix.opts.cursor.width = 3`) and table form (`sonopix.opts.cursor = { width = 3, color = "#FF0000" }`)
 - `sonopix.opts = { ... }` table assignment now works for all opts including nested `cursor` and `frequency`
 
+### Features (post-0.1)
+
+- **Audio export** — `-o / --output FILE` saves sonified audio to WAV or OGG and exits; window closes automatically after saving
+- **`sonopix.save_audio(filepath)`** Lua binding — saves audio from a script; blocks until sonification completes if still running
+
 ### Bug Fixes (post-0.1)
 
 - Fix `sonify()` copying audio buffer — now uses `take_audio()` to move instead
