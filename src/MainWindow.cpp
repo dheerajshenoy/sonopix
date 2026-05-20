@@ -8,7 +8,12 @@
 MainWindow::MainWindow() : m_sprite(m_tex)
 {
     m_sonifier = new sonify::SonifyEngine();
-    m_window   = sf::RenderWindow(sf::VideoMode(m_window_size), m_window_title);
+    sf::ContextSettings settings;
+    settings.antiAliasingLevel = 8;
+    settings.depthBits         = 24;
+    m_window
+        = sf::RenderWindow(sf::VideoMode(m_window_size), m_window_title,
+                           sf::Style::Default, sf::State::Windowed, settings);
     m_audio_engine = new AudioEngine();
 }
 
@@ -217,7 +222,8 @@ MainWindow::handle_resize_event(const sf::Event::Resized *e) noexcept
     // Save cursor offset relative to old sprite origin before rescaling
     const float oldScale         = m_sprite.getScale().x;
     const sf::Vector2f oldOrigin = m_sprite.getPosition();
-    const sf::Vector2f cursorPos = m_cursor_rect.getPosition();
+    const sf::Vector2f cursorPos
+        = m_cursor ? m_cursor->getPosition() : sf::Vector2f{};
     const sf::Vector2f relOffset
         = oldScale > 0.f ? (cursorPos - oldOrigin) / oldScale : sf::Vector2f{};
 
@@ -278,33 +284,48 @@ MainWindow::rescale_recenter_image() noexcept
 void
 MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
 {
-    m_cursor_rect.setFillColor(m_cursor_color);
-
     switch (m_direction)
     {
         case sonify::Direction::LEFT_TO_RIGHT:
         case sonify::Direction::RIGHT_TO_LEFT:
         {
-            m_cursor_rect.setSize({m_cursor_width, m_tex_size.y * scale});
+            auto rect = std::make_unique<sf::RectangleShape>();
+            rect->setFillColor(m_cursor_color);
+            rect->setSize({m_cursor_width, m_tex_size.y * scale});
             if (position == sf::Vector2<float>{})
                 position = m_sprite.getPosition();
-            m_cursor_rect.setPosition(position);
+            rect->setPosition(position);
+            m_cursor = std::move(rect);
         }
         break;
 
         case sonify::Direction::TOP_TO_BOTTOM:
         case sonify::Direction::BOTTOM_TO_TOP:
         {
-            m_cursor_rect.setSize({m_tex_size.x * scale, m_cursor_width});
+            auto rect = std::make_unique<sf::RectangleShape>();
+            rect->setFillColor(m_cursor_color);
+            rect->setSize({m_tex_size.x * scale, m_cursor_width});
             if (position == sf::Vector2<float>{})
                 position = m_sprite.getPosition();
-            m_cursor_rect.setPosition(position);
+            rect->setPosition(position);
+            m_cursor = std::move(rect);
         }
         break;
 
         case sonify::Direction::CIRCLE_OUTWARDS:
         case sonify::Direction::CIRCLE_INWARDS:
-            break;
+        {
+            auto circle = std::make_unique<sf::CircleShape>();
+            circle->setFillColor(sf::Color::Transparent);
+            circle->setOutlineColor(m_cursor_color);
+            circle->setOutlineThickness(m_cursor_width);
+            circle->setRadius(0.f);
+            const sf::Vector2f spritePos = m_sprite.getPosition();
+            circle->setPosition({spritePos.x + (m_tex_size.x * scale) * 0.5f,
+                                 spritePos.y + (m_tex_size.y * scale) * 0.5f});
+            m_cursor = std::move(circle);
+        }
+        break;
     }
 }
 
@@ -325,7 +346,8 @@ MainWindow::render() noexcept
     m_window.clear();
 
     m_window.draw(m_sprite);
-    m_window.draw(m_cursor_rect);
+    if (m_cursor)
+        m_window.draw(*m_cursor);
 
     m_window.display();
 }
@@ -378,82 +400,107 @@ MainWindow::toggle_pause() noexcept
 void
 MainWindow::move_cursor() noexcept
 {
-    if (!m_audio_engine || !m_audio_engine->is_playing())
+    if (!m_audio_engine)
         return;
 
-    const std::size_t sample_idx = m_audio_engine->sample_index();
+    if (!m_audio_engine->is_stopped())
+        m_last_sample_index = m_audio_engine->sample_index();
+    else if (m_last_sample_index == 0)
+        return;
+
+    const std::size_t sample_idx = m_last_sample_index;
 
     switch (m_direction)
     {
         case sonify::Direction::LEFT_TO_RIGHT:
         case sonify::Direction::RIGHT_TO_LEFT:
         {
-            const int samples_per_column
+            const int spu
                 = std::max(1, static_cast<int>(m_sonifier->sample_rate()
                                                * m_sonifier->secs_per_unit()));
-
             const int w = static_cast<int>(m_tex_size.x);
-
-            const int col = static_cast<int>(
-                sample_idx / static_cast<std::size_t>(samples_per_column));
-
-            // Convert column -> pixel x in DISPLAY space (taking sprite scale
-            // into account)
+            const int col
+                = static_cast<int>(sample_idx / static_cast<std::size_t>(spu));
             const float scale = m_sprite.getScale().x;
+            const float x     = m_direction == sonify::Direction::RIGHT_TO_LEFT
+                                    ? m_sprite.getPosition().x
+                                          + static_cast<float>(w - col) * scale
+                                    : m_sprite.getPosition().x
+                                          + static_cast<float>(col) * scale;
 
-            float x;
-            if (m_direction == sonify::Direction::RIGHT_TO_LEFT)
-            {
-                x = m_sprite.getPosition().x
-                    + static_cast<float>(w - col) * scale;
-            }
-            else if (m_direction == sonify::Direction::LEFT_TO_RIGHT)
-                x = m_sprite.getPosition().x + static_cast<float>(col) * scale;
-
-            const float y = m_sprite.getPosition().y;
-
-            m_cursor_rect.setSize(
+            auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
+            rect->setSize(
                 {m_cursor_width, static_cast<float>(m_tex_size.y) * scale});
-            m_cursor_rect.setPosition({x, y});
+            rect->setPosition({x, m_sprite.getPosition().y});
         }
         break;
 
         case sonify::Direction::TOP_TO_BOTTOM:
         case sonify::Direction::BOTTOM_TO_TOP:
         {
-            const int samples_per_row
+            const int spu
                 = std::max(1, static_cast<int>(m_sonifier->sample_rate()
                                                * m_sonifier->secs_per_unit()));
-
             const int h = static_cast<int>(m_tex_size.y);
-
-            const int row = static_cast<int>(
-                sample_idx / static_cast<std::size_t>(samples_per_row));
-
-            // Convert row -> pixel y in DISPLAY space (taking sprite scale
-            // into account)
+            const int row
+                = static_cast<int>(sample_idx / static_cast<std::size_t>(spu));
             const float scale = m_sprite.getScale().y;
+            const float y     = m_direction == sonify::Direction::BOTTOM_TO_TOP
+                                    ? m_sprite.getPosition().y
+                                          + static_cast<float>(h - row) * scale
+                                    : m_sprite.getPosition().y
+                                          + static_cast<float>(row) * scale;
 
-            float y;
-            if (m_direction == sonify::Direction::BOTTOM_TO_TOP)
-            {
-                y = m_sprite.getPosition().y
-                    + static_cast<float>(h - row) * scale;
-            }
-            else if (m_direction == sonify::Direction::TOP_TO_BOTTOM)
-                y = m_sprite.getPosition().y + static_cast<float>(row) * scale;
-
-            const float x = m_sprite.getPosition().x;
-
-            m_cursor_rect.setSize(
+            auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
+            rect->setSize(
                 {static_cast<float>(m_tex_size.x) * scale, m_cursor_width});
-            m_cursor_rect.setPosition({x, y});
+            rect->setPosition({m_sprite.getPosition().x, y});
         }
         break;
 
         case sonify::Direction::CIRCLE_OUTWARDS:
         case sonify::Direction::CIRCLE_INWARDS:
-            break;
+        {
+            const int spu
+                = std::max(1, static_cast<int>(m_sonifier->sample_rate()
+                                               * m_sonifier->secs_per_unit()));
+            const float scale  = m_sprite.getScale().x;
+            const int w        = static_cast<int>(m_tex_size.x);
+            const int h        = static_cast<int>(m_tex_size.y);
+            const float cx_img = (w - 1) * 0.5f;
+            const float cy_img = (h - 1) * 0.5f;
+            const int max_r
+                = static_cast<int>(std::sqrt(cx_img * cx_img + cy_img * cy_img))
+                  + 1;
+
+            const int ring
+                = static_cast<int>(sample_idx / static_cast<std::size_t>(spu));
+            const int r = m_direction == sonify::Direction::CIRCLE_INWARDS
+                              ? std::max(0, max_r - ring)
+                              : std::min(ring, max_r);
+
+            const float radius           = r * scale;
+            const sf::Vector2f spritePos = m_sprite.getPosition();
+            const float cx_disp          = spritePos.x + cx_img * scale;
+            const float cy_disp          = spritePos.y + cy_img * scale;
+
+            // Subtract half stroke width so the outline is centred on the
+            // ring boundary rather than hanging fully outside it.
+            const float inner_r = std::max(0.f, radius - m_cursor_width * 0.5f);
+
+            // One point per ~1.5 display pixels of circumference, min 60,
+            // so the circle stays smooth at all sizes.
+            const auto points = static_cast<std::size_t>(
+                std::max(60.f, 2.f * 3.14159265f * radius / 1.5f));
+
+            auto *circle = static_cast<sf::CircleShape *>(m_cursor.get());
+            circle->setPointCount(points);
+            circle->setOutlineColor(m_cursor_color);
+            circle->setOutlineThickness(m_cursor_width);
+            circle->setRadius(inner_r);
+            circle->setPosition({cx_disp - inner_r, cy_disp - inner_r});
+        }
+        break;
     }
 }
 
@@ -473,5 +520,12 @@ MainWindow::set_cursor_color(const std::string &color_str) noexcept
     if (hex.length() == 6)
         hex += "FF";
     m_cursor_color = sf::Color(std::stoul(hex, nullptr, 16));
-    m_cursor_rect.setFillColor(m_cursor_color);
+    if (!m_cursor)
+        return;
+    if (m_direction == sonify::Direction::CIRCLE_OUTWARDS
+        || m_direction == sonify::Direction::CIRCLE_INWARDS)
+        static_cast<sf::CircleShape *>(m_cursor.get())
+            ->setOutlineColor(m_cursor_color);
+    else
+        m_cursor->setFillColor(m_cursor_color);
 }

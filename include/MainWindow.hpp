@@ -9,6 +9,7 @@
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Window.hpp>
 #include <lua.hpp>
+#include <memory>
 
 class MainWindow
 {
@@ -90,14 +91,15 @@ private:
     sf::RenderWindow m_window;
     sf::Texture m_tex;
     sf::Sprite m_sprite;
-    sf::RectangleShape m_cursor_rect;
+    std::unique_ptr<sf::Shape> m_cursor;
     sf::Clock m_clock;
 
-    sonify::SonifyEngine *m_sonifier = nullptr;
-    bool m_paused                    = true;
-    bool m_verbose                   = false;
-    float m_cursor_width             = 5.0;
-    sf::Color m_cursor_color         = sf::Color(255, 0, 0, 128);
-    sonify::Direction m_direction    = sonify::Direction::LEFT_TO_RIGHT;
-    lua_State *m_L                   = nullptr;
+    sonify::SonifyEngine *m_sonifier  = nullptr;
+    bool m_paused                     = true;
+    bool m_verbose                    = false;
+    float m_cursor_width              = 5.0;
+    sf::Color m_cursor_color          = sf::Color(255, 0, 0, 128);
+    sonify::Direction m_direction     = sonify::Direction::LEFT_TO_RIGHT;
+    std::size_t m_last_sample_index   = 0;
+    lua_State *m_L                    = nullptr;
 };

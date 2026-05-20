@@ -209,23 +209,6 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         return 0;
     }
 
-    // sonopix.opts.frequency_range
-    if (strcmp(key, "frequency_range") == 0)
-    {
-        if (!lua_istable(L, 3))
-            return luaL_error(L,
-                              "frequency_range must be a table {fmin, fmax}");
-        lua_rawgeti(L, 3, 1);
-        lua_rawgeti(L, 3, 2);
-        float fmin = static_cast<float>(luaL_checknumber(L, -2));
-        float fmax = static_cast<float>(luaL_checknumber(L, -1));
-        lua_pop(L, 2);
-        if (fmin <= 0.0f || fmax <= fmin)
-            return luaL_error(L, "frequency_range requires 0 < fmin < fmax");
-        sonifier->set_freq_range(fmin, fmax);
-        return 0;
-    }
-
     // sonopix.opts.cursor = { ... }  — forward each key to the cursor sub-table
     if (strcmp(key, "cursor") == 0)
     {
@@ -238,8 +221,26 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         {
             lua_pushvalue(L, -2); // copy k
             lua_pushvalue(L, -2); // copy v
-            lua_settable(L,
-                         4); // cursor_opts[k] = v → triggers cursor __newindex
+            lua_settable(L, 4);
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
+    // sonopix.opts.frequency = { ... } — forward each key to the frequency
+    // sub-table
+    if (strcmp(key, "frequency") == 0)
+    {
+        if (!lua_istable(L, 3))
+            return luaL_error(L, "frequency must be a table");
+        lua_getfield(L, LUA_REGISTRYINDEX,
+                     "sonopix_frequency_opts"); // [4] = frequency opts
+        lua_pushnil(L);
+        while (lua_next(L, 3) != 0)
+        {
+            lua_pushvalue(L, -2); // copy k
+            lua_pushvalue(L, -2); // copy v
+            lua_settable(L, 4);
             lua_pop(L, 1);
         }
         return 0;
@@ -344,6 +345,111 @@ MainWindow::init_lua_sonopix_opts() noexcept
     lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_cursor_opts");
     lua_pop(m_L, 1); // registry holds the ref; pop local copy
 
+    // --- frequency sub-table ---
+    lua_newtable(m_L); // frequency opts table
+    lua_newtable(m_L); // frequency opts metatable
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key)
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+        MainWindow *window
+            = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        sonify::FreqMap fm = window->sonifier()->freq_map();
+        if (strcmp(key, "min") == 0)
+        {
+            lua_pushnumber(L, fm.min);
+            return 1;
+        }
+        if (strcmp(key, "max") == 0)
+        {
+            lua_pushnumber(L, fm.max);
+            return 1;
+        }
+        if (strcmp(key, "scale") == 0)
+        {
+            const char *s = nullptr;
+            switch (fm.scale)
+            {
+                case sonify::FreqScale::LINEAR:
+                    s = "linear";
+                    break;
+                case sonify::FreqScale::LOG:
+                    s = "log";
+                    break;
+                case sonify::FreqScale::EXPONENTIAL:
+                    s = "exponential";
+                    break;
+                default:
+                    return luaL_error(L, "Invalid freq scale enum");
+            }
+            lua_pushstring(L, s);
+            return 1;
+        }
+        lua_pushvalue(L, 2);
+        lua_rawget(L, 1);
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "__index");
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key)
+            return 0;
+        MainWindow *window
+            = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        sonify::SonifyEngine *sonifier = window->sonifier();
+        if (strcmp(key, "min") == 0)
+        {
+            float fmin = static_cast<float>(luaL_checknumber(L, 3));
+            if (fmin <= 0.0f)
+                return luaL_error(L, "frequency.fmin must be > 0");
+            sonifier->set_freq_range(fmin, sonifier->freq_map().max);
+            return 0;
+        }
+        if (strcmp(key, "max") == 0)
+        {
+            float fmax = static_cast<float>(luaL_checknumber(L, 3));
+            if (fmax <= 0.0f)
+                return luaL_error(L, "frequency.fmax must be > 0");
+            sonifier->set_freq_range(sonifier->freq_map().min, fmax);
+            return 0;
+        }
+        if (strcmp(key, "scale") == 0)
+        {
+            const char *scale_str = luaL_checkstring(L, 3);
+            sonify::FreqScale scale;
+            if (strcmp(scale_str, "linear") == 0)
+                scale = sonify::FreqScale::LINEAR;
+            else if (strcmp(scale_str, "log") == 0)
+                scale = sonify::FreqScale::LOG;
+            else if (strcmp(scale_str, "exponential") == 0)
+                scale = sonify::FreqScale::EXPONENTIAL;
+            else
+                return luaL_error(L, "frequency.scale must be \"linear\", "
+                                     "\"log\", or \"exponential\"");
+            sonifier->set_freq_scale(scale);
+            return 0;
+        }
+        lua_pushvalue(L, 2);
+        lua_pushvalue(L, 3);
+        lua_rawset(L, 1);
+        return 0;
+    }, 1);
+    lua_setfield(m_L, -2, "__newindex");
+
+    lua_setmetatable(m_L, -2); // attach metatable to frequency opts table
+    lua_pushvalue(m_L, -1);
+    lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_frequency_opts");
+    lua_pop(m_L, 1);
+
     // --- opts table ---
     lua_newtable(m_L); // sonopix.opts table
     lua_newtable(m_L); // opts metatable
@@ -410,22 +516,17 @@ MainWindow::init_lua_sonopix_opts() noexcept
             return 1;
         }
 
-        // sonopix.opts.frequency_range
-        if (strcmp(key, "frequency_range") == 0)
-        {
-            sonify::FreqMap fm = window->sonifier()->freq_map();
-            lua_newtable(L);
-            lua_pushnumber(L, fm.min);
-            lua_rawseti(L, -2, 1);
-            lua_pushnumber(L, fm.max);
-            lua_rawseti(L, -2, 2);
-            return 1;
-        }
-
         // sonopix.opts.cursor
         if (strcmp(key, "cursor") == 0)
         {
             lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_cursor_opts");
+            return 1;
+        }
+
+        // sonopix.opts.frequency
+        if (strcmp(key, "frequency") == 0)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_frequency_opts");
             return 1;
         }
 
