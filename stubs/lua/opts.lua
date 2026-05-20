@@ -26,13 +26,16 @@ sonopix = sonopix or {}
 ---@field scale? "linear"|"log"|"exponential" Frequency mapping scale (default: "linear")
 
 ---@class SonopixOpts
----@field direction? "left-to-right"|"right-to-left"|"top-to-bottom"|"bottom-to-top"|"circle-outwards"|"circle-inwards" Scan direction
+---@field direction? "left-to-right"|"right-to-left"|"top-to-bottom"|"bottom-to-top"|"circle-outwards"|"circle-inwards"|"zigzag-h"|"zigzag-v" Scan direction
 ---@field frequency? FrequencyOpts Frequency mapping options
 ---@field spu? number Seconds per unit (column or row); must be > 0
 ---@field cursor? SonopixCursorOpts Cursor appearance options
 ---@field sample_rate? number Sample rate in Hz (must be > 0)
 ---@field channel_count? integer Number of audio channels (must be > 0)
+---@field amplitude? number Master gain applied to the audio buffer after sonification (default: 1.0, must be >= 0)
+---@field show_progress_bar? boolean Show/hide the mpv-style progress bar overlaid at the bottom of the image (default: true)
 ---@field antialiasing_level? integer MSAA sample count (0 = off, 2/4/8 typical); applied at window creation
+---@field traversal_func? fun(strip_index: integer, total: integer, width: integer, height: integer): integer, integer Custom pixel traversal; called once per strip with (strip_index, total, width, height); return (x, y) for that strip
 ---@field sonify_func? fun(ctx: SonifyContext): number Custom sonification function; receives context per sample and returns a float in [-1, 1]
 
 ---@type SonopixOpts

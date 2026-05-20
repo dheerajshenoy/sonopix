@@ -77,7 +77,9 @@ enum class Direction
     TOP_TO_BOTTOM,
     BOTTOM_TO_TOP,
     CIRCLE_OUTWARDS,
-    CIRCLE_INWARDS
+    CIRCLE_INWARDS,
+    ZIGZAG_H, // pixel-level serpentine: rows alternate left→right / right→left
+    ZIGZAG_V, // pixel-level serpentine: columns alternate top→bottom / bottom→top
 };
 
 struct FreqMap
@@ -161,6 +163,27 @@ public:
     std::vector<float>       &audio() noexcept             { return m_audio_data; }
     inline std::vector<float> take_audio() noexcept        { return std::move(m_audio_data); }
 
+    // Custom pixel-order traversal: each pair (x, y) becomes one strip whose
+    // brightness is the single pixel at that coordinate.
+    void sonify_with_pixels(const std::vector<std::pair<int, int>> &pixels)
+    {
+        validate();
+        const int w     = m_img.width;
+        const int h     = m_img.height;
+        const int spu   = std::max(1, static_cast<int>(m_sample_rate * m_secs_per_unit));
+        const int total = static_cast<int>(pixels.size());
+        m_audio_data.clear();
+        m_audio_data.reserve(static_cast<std::size_t>(total) * spu);
+        for (int i = 0; i < total; ++i)
+        {
+            const auto [x, y] = pixels[i];
+            const float brightness = pixel_brightness(
+                &m_img.data[y * m_img.stride + x * m_img.channels],
+                m_img.channels);
+            emit_strip(brightness, x, y, w, h, spu, i, total);
+        }
+    }
+
     inline void set_sonify_func(const SonifyFunc &func) noexcept { m_sonify_func = func; }
     const SonifyFunc &sonify_func() const noexcept               { return m_sonify_func; }
 
@@ -188,7 +211,8 @@ public:
             case Direction::BOTTOM_TO_TOP: sonify_bottom_to_top(); break;
             case Direction::CIRCLE_OUTWARDS: sonify_circle(true);  break;
             case Direction::CIRCLE_INWARDS:  sonify_circle(false); break;
-            default: break;
+            case Direction::ZIGZAG_H: sonify_zigzag_h(); break;
+            case Direction::ZIGZAG_V: sonify_zigzag_v(); break;
         }
     }
 
@@ -297,6 +321,62 @@ private:
         m_audio_data.reserve(static_cast<std::size_t>(h) * spu);
         for (int y = h - 1; y >= 0; --y)
             emit_strip(row_brightness(y), 0, y, w, h, spu, (h - 1) - y, h);
+    }
+
+    void sonify_zigzag_h()
+    {
+        const int w     = m_img.width;
+        const int h     = m_img.height;
+        const int spu   = std::max(1, static_cast<int>(m_sample_rate * m_secs_per_unit));
+        const int total = w * h;
+        m_audio_data.clear();
+        m_audio_data.reserve(static_cast<std::size_t>(total) * spu);
+        int strip_idx = 0;
+        for (int y = 0; y < h; ++y)
+        {
+            if (y % 2 == 0)
+            {
+                for (int x = 0; x < w; ++x, ++strip_idx)
+                    emit_strip(pixel_brightness(
+                        &m_img.data[y * m_img.stride + x * m_img.channels],
+                        m_img.channels), x, y, w, h, spu, strip_idx, total);
+            }
+            else
+            {
+                for (int x = w - 1; x >= 0; --x, ++strip_idx)
+                    emit_strip(pixel_brightness(
+                        &m_img.data[y * m_img.stride + x * m_img.channels],
+                        m_img.channels), x, y, w, h, spu, strip_idx, total);
+            }
+        }
+    }
+
+    void sonify_zigzag_v()
+    {
+        const int w     = m_img.width;
+        const int h     = m_img.height;
+        const int spu   = std::max(1, static_cast<int>(m_sample_rate * m_secs_per_unit));
+        const int total = w * h;
+        m_audio_data.clear();
+        m_audio_data.reserve(static_cast<std::size_t>(total) * spu);
+        int strip_idx = 0;
+        for (int x = 0; x < w; ++x)
+        {
+            if (x % 2 == 0)
+            {
+                for (int y = 0; y < h; ++y, ++strip_idx)
+                    emit_strip(pixel_brightness(
+                        &m_img.data[y * m_img.stride + x * m_img.channels],
+                        m_img.channels), x, y, w, h, spu, strip_idx, total);
+            }
+            else
+            {
+                for (int y = h - 1; y >= 0; --y, ++strip_idx)
+                    emit_strip(pixel_brightness(
+                        &m_img.data[y * m_img.stride + x * m_img.channels],
+                        m_img.channels), x, y, w, h, spu, strip_idx, total);
+            }
+        }
     }
 
     // Shared implementation for CIRCLE_OUTWARDS (outwards=true) and

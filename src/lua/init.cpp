@@ -116,22 +116,34 @@ MainWindow::init_lua_sonopix() noexcept
     lua_pushlightuserdata(m_L, this);
     lua_pushcclosure(m_L, [](lua_State *L) -> int
     {
-        try
-        {
-            MainWindow *window = static_cast<MainWindow *>(
-                lua_touserdata(L, lua_upvalueindex(1)));
-            bool is_playing = window->m_audio_engine->is_playing();
-            lua_pushboolean(L, is_playing);
-        }
-        catch (const std::exception &e)
-        {
-            lua_pushboolean(L, 0);
-            return luaL_error(L, "Error checking playback status: %s",
-                              e.what());
-        }
+        MainWindow *window = static_cast<MainWindow *>(
+            lua_touserdata(L, lua_upvalueindex(1)));
+        lua_pushboolean(L, window->m_audio_engine->is_playing() ? 1 : 0);
         return 1;
     }, 1);
     lua_setfield(m_L, -2, "is_playing");
+
+    // sonopix.is_paused() -> boolean
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        MainWindow *window = static_cast<MainWindow *>(
+            lua_touserdata(L, lua_upvalueindex(1)));
+        lua_pushboolean(L, window->m_audio_engine->is_paused() ? 1 : 0);
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "is_paused");
+
+    // sonopix.is_stopped() -> boolean
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        MainWindow *window = static_cast<MainWindow *>(
+            lua_touserdata(L, lua_upvalueindex(1)));
+        lua_pushboolean(L, window->m_audio_engine->is_stopped() ? 1 : 0);
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "is_stopped");
 
     // sonopix.current_time() -> number
     lua_pushlightuserdata(m_L, this);
@@ -193,6 +205,10 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
             direction = sonify::Direction::CIRCLE_OUTWARDS;
         else if (strcmp(dir_str, "circle-inwards") == 0)
             direction = sonify::Direction::CIRCLE_INWARDS;
+        else if (strcmp(dir_str, "zigzag-h") == 0)
+            direction = sonify::Direction::ZIGZAG_H;
+        else if (strcmp(dir_str, "zigzag-v") == 0)
+            direction = sonify::Direction::ZIGZAG_V;
         else
             return luaL_error(L, "Invalid direction: %s", dir_str);
 
@@ -220,6 +236,16 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         return 0;
     }
 
+    // sonopix.opts.amplitude
+    if (strcmp(key, "amplitude") == 0)
+    {
+        float amp = static_cast<float>(luaL_checknumber(L, 3));
+        if (amp < 0.0f)
+            return luaL_error(L, "amplitude must be >= 0");
+        window->set_amplitude(amp);
+        return 0;
+    }
+
     // sonopix.opts.spu
     if (strcmp(key, "spu") == 0)
     {
@@ -237,6 +263,24 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         if (rate <= 0.0f)
             return luaL_error(L, "Invalid sample rate: %f", rate);
         sonifier->set_sample_rate(rate);
+        return 0;
+    }
+
+    // sonopix.opts.show_progress_bar
+    if (strcmp(key, "show_progress_bar") == 0)
+    {
+        luaL_checktype(L, 3, LUA_TBOOLEAN);
+        window->set_show_progress_bar(lua_toboolean(L, 3) != 0);
+        return 0;
+    }
+
+    // sonopix.opts.traversal_func
+    if (strcmp(key, "traversal_func") == 0)
+    {
+        if (!lua_isfunction(L, 3) && !lua_isnil(L, 3))
+            return luaL_error(L, "traversal_func must be a function or nil");
+        lua_pushvalue(L, 3);
+        lua_setfield(L, LUA_REGISTRYINDEX, "sonopix_traversal_func");
         return 0;
     }
 
@@ -592,6 +636,12 @@ MainWindow::init_lua_sonopix_opts() noexcept
                 case sonify::Direction::CIRCLE_INWARDS:
                     dir_str = "circle-inwards";
                     break;
+                case sonify::Direction::ZIGZAG_H:
+                    dir_str = "zigzag-h";
+                    break;
+                case sonify::Direction::ZIGZAG_V:
+                    dir_str = "zigzag-v";
+                    break;
                 default:
                     return luaL_error(L, "Invalid direction enum value");
             }
@@ -640,6 +690,27 @@ MainWindow::init_lua_sonopix_opts() noexcept
         if (strcmp(key, "antialiasing_level") == 0)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(window->antialiasing_level()));
+            return 1;
+        }
+
+        // sonopix.opts.show_progress_bar
+        if (strcmp(key, "show_progress_bar") == 0)
+        {
+            lua_pushboolean(L, window->show_progress_bar() ? 1 : 0);
+            return 1;
+        }
+
+        // sonopix.opts.traversal_func
+        if (strcmp(key, "traversal_func") == 0)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_traversal_func");
+            return 1;
+        }
+
+        // sonopix.opts.amplitude
+        if (strcmp(key, "amplitude") == 0)
+        {
+            lua_pushnumber(L, static_cast<lua_Number>(window->amplitude()));
             return 1;
         }
 

@@ -14,6 +14,8 @@
     - BOTTOM TO TOP
     - CIRCLE OUTWARDS
     - CIRCLE INWARDS
+    - ZIGZAG H
+    - ZIGZAG V
 - Image Resizing
 
 #### Window
@@ -34,6 +36,12 @@
 - `sonopix.opts = { ... }` table assignment now works for all opts including nested `cursor` and `frequency`
 
 ### Features (post-0.1)
+
+- **Progress bar** — mpv-style thin bar overlaid at the bottom of the image showing playback progress; dark semi-transparent background track with a bright fill; toggled via `sonopix.opts.show_progress_bar` (default: `true`)
+
+- **`sonopix.opts.amplitude`** — master gain applied to the audio buffer after sonification (default: `1.0`, must be `>= 0`); captured at `sonify()` call time
+- **Built-in `"zigzag-h"` and `"zigzag-v"` directions** — pixel-level serpentine traversals running entirely in C++; `zigzag-h` alternates rows left→right / right→left, `zigzag-v` alternates columns top→bottom / bottom→top; point cursor tracks the moving pixel
+- **`sonopix.opts.traversal_func`** — custom pixel-level traversal; called **once per strip** by C++ with `(strip_index, total, width, height)`; return `(x, y)` for that strip — no table allocation; a `cursor_width × cursor_width` point cursor tracks the current pixel during playback
 
 - **Audio export** — `-o / --output FILE` saves sonified audio to WAV or OGG and exits; window closes automatically after saving
 - **`sonopix.save_audio(filepath)`** Lua binding — saves audio from a script; blocks until sonification completes if still running

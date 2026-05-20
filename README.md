@@ -28,7 +28,7 @@ sonopix [options]
 | `-d, --direction DIR` | Scan direction (see below) |
 | `-f, --frequency MIN:MAX` | Frequency range in Hz (default: `20:2500`) |
 | `-s, --freq-scale SCALE` | `linear`, `log`, or `exponential` |
-| `-u, --secs-per-unit SPU` | Seconds of audio per column/row/ring |
+| `-u, --secs-per-unit SPU` | Seconds of audio per column/row/ring/pixel |
 | `-r, --sample-rate RATE` | Audio sample rate (default: `44100`) |
 | `--cursor-width WIDTH` | Cursor width in pixels |
 | `-o, --output FILE` | Save sonified audio to file (WAV/OGG); exits after saving |
@@ -45,6 +45,8 @@ sonopix [options]
 | `bottom-to-top` | Scans rows bottom → top |
 | `circle-outwards` | Scans rings from center outward |
 | `circle-inwards` | Scans rings from edge inward |
+| `zigzag-h` | Pixel-level serpentine: rows alternate left→right / right→left |
+| `zigzag-v` | Pixel-level serpentine: columns alternate top→bottom / bottom→top |
 
 ### Keybindings
 
@@ -57,7 +59,11 @@ sonopix [options]
 
 Pass a script with `--script file.lua`. The script runs before the main loop, so options set here apply before the first sonification.
 
-Key Lua functions: `open_file(path)`, `sonify()`, `play()`, `pause()`, `stop()`, `save_audio(path)`, `is_playing()`, `is_paused()`, `is_stopped()`, `current_time()`.
+**Playback:** `play()`, `pause()`, `stop()`
+
+**Status:** `is_playing()`, `is_paused()`, `is_stopped()`, `current_time()`
+
+**Image / audio:** `open_file(path)`, `sonify()`, `save_audio(path)`
 
 ```lua
 sonopix.open_file("/path/to/image.png")
@@ -79,16 +85,51 @@ end
 
 | Field | Type | Description |
 |---|---|---|
-| `direction` | string | Scan direction |
-| `spu` | number | Seconds per column/row/ring |
+| `direction` | string | Scan direction; `"zigzag-h"` / `"zigzag-v"` do pixel-level traversal in C++ |
+| `spu` | number | Seconds of audio per unit (column/row/ring, or pixel for zigzag/custom) |
 | `sample_rate` | number | Audio sample rate in Hz |
 | `frequency.min` | number | Minimum frequency in Hz |
 | `frequency.max` | number | Maximum frequency in Hz |
 | `frequency.scale` | string | `"linear"`, `"log"`, or `"exponential"` |
 | `cursor.width` | number | Cursor width in pixels |
 | `cursor.color` | string | Cursor color as `"#RRGGBB"` or `"#RRGGBBAA"` |
+| `amplitude` | number | Master gain applied after sonification (default: `1.0`) |
+| `show_progress_bar` | boolean | Show/hide the 4 px progress bar pinned to the bottom of the window (default: `true`) |
 | `antialiasing_level` | integer | MSAA sample count; applied at window creation |
-| `sonify_func` | function | Custom sonification function (see below) |
+| `traversal_func` | function | Custom pixel order: `(strip_index, total, w, h) → x, y` (see below) |
+| `sonify_func` | function | Custom sonification function: `(ctx) → float` (see below) |
+
+### Custom traversal order
+
+For common pixel-level traversals prefer the built-in `"zigzag-h"` and `"zigzag-v"` directions — they run entirely in C++ with no Lua overhead.
+
+For arbitrary orderings set `sonopix.opts.traversal_func`. The function is called **once per strip** by C++ with `(strip_index, total, width, height)` and must return `(x, y)` for that strip. Each pixel becomes one audio strip whose brightness is that single pixel's brightness. A point cursor tracks the moving pixel during playback.
+
+```lua
+-- Horizontal zigzag (equivalent to built-in "zigzag-h")
+sonopix.opts.traversal_func = function(i, total, w, h)
+    local row     = math.floor(i / w)
+    local col_raw = i % w
+    if row % 2 == 0 then
+        return col_raw, row
+    else
+        return w - 1 - col_raw, row
+    end
+end
+
+-- Diagonal stripes (top-left to bottom-right)
+sonopix.opts.traversal_func = function(i, total, w, h)
+    local diag = i % (w + h - 1)
+    local x    = math.min(diag, w - 1)
+    local y    = math.max(0, diag - (w - 1))
+    return x, y
+end
+
+-- Random scatter (with replacement; seed math.randomseed() for reproducibility)
+sonopix.opts.traversal_func = function(i, total, w, h)
+    return math.random(0, w - 1), math.random(0, h - 1)
+end
+```
 
 ### Custom sonification function
 
