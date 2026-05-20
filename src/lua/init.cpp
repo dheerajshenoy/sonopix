@@ -85,6 +85,15 @@ MainWindow::init_lua_sonopix() noexcept
     }, 1);
     lua_setfield(m_L, -2, "play");
 
+    // sonopix.pause()
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)))->pause();
+        return 0;
+    }, 1);
+    lua_setfield(m_L, -2, "pause");
+
     // sonopix.stop()
     lua_pushlightuserdata(m_L, this);
     lua_pushcclosure(m_L, [](lua_State *L) -> int
@@ -274,6 +283,8 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
 
                 if (lua_pcall(Lc, 1, 1, 0) != LUA_OK)
                 {
+                    fprintf(stderr, "sonify_func error: %s\n",
+                            lua_tostring(Lc, -1));
                     lua_pop(Lc, 1);
                     return 0.0f;
                 }

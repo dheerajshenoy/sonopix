@@ -33,6 +33,21 @@
     - Supports both inline (`sonopix.opts.cursor.width = 3`) and table form (`sonopix.opts.cursor = { width = 3, color = "#FF0000" }`)
 - `sonopix.opts = { ... }` table assignment now works for all opts including nested `cursor` and `frequency`
 
+### Bug Fixes (post-0.1)
+
+- Fix `sonify()` copying audio buffer — now uses `take_audio()` to move instead
+- Fix `set_cursor_width` not updating the live cursor shape
+- Fix `~` home directory expansion in `load_image` — guarded on `[0] == '~'` and passed `fixed_filename` to `loadFromFile`
+- Fix `sonopix.pause()` missing from Lua bindings
+- Fix `toggle_pause` using stale `m_paused` flag — now reads `is_playing()` directly from the audio engine
+- Fix Lua `sonify_func` errors silently swallowed — failures now print to stderr
+
+### Refactor (post-0.1)
+
+- `m_sonifier` and `m_audio_engine` converted from raw pointers to `std::unique_ptr`; destructor is `= default`
+- Removed redundant `m_paused` member — audio engine state is the single source of truth
+- `sonify()` now runs on a background thread via `std::async`; window title shows `[sonifying...]` while in progress
+
 ### Refactor
 
 - `SonifyEngine`: extracted `pixel_brightness`, `column_brightness`, `row_brightness`, and `emit_strip` helpers — eliminates the four near-identical traversal functions

@@ -9,6 +9,7 @@
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Window.hpp>
 #include <SFML/Window/ContextSettings.hpp>
+#include <future>
 #include <lua.hpp>
 #include <memory>
 
@@ -23,12 +24,12 @@ public:
 
     inline sonify::SonifyEngine *sonifier() noexcept
     {
-        return m_sonifier;
+        return m_sonifier.get();
     }
 
     inline AudioEngine *audio_engine() noexcept
     {
-        return m_audio_engine;
+        return m_audio_engine.get();
     }
 
     inline void set_direction(sonify::Direction direction) noexcept
@@ -42,10 +43,7 @@ public:
         return m_direction;
     }
 
-    inline void set_cursor_width(float w) noexcept
-    {
-        m_cursor_width = w;
-    }
+    void set_cursor_width(float w) noexcept;
 
     inline float cursor_width() const noexcept
     {
@@ -94,10 +92,11 @@ private:
                      sf::Vector2<float> position = {}) noexcept;
     void create_window() noexcept;
 
-    AudioEngine *m_audio_engine = nullptr;
-    std::string m_window_title  = "Sonopix";
-    std::string m_input_file    = "";
-    sf::Vector2u m_window_size  = {800, 600};
+    std::unique_ptr<AudioEngine> m_audio_engine;
+    std::unique_ptr<sonify::SonifyEngine> m_sonifier;
+    std::string m_window_title       = "Sonopix";
+    std::string m_input_file         = "";
+    sf::Vector2u m_window_size       = {800, 600};
     sf::Vector2u m_win_size;
     sf::Vector2u m_tex_size;
     sf::RenderWindow m_window;
@@ -107,8 +106,7 @@ private:
     sf::Clock m_clock;
 
     sf::ContextSettings m_context_settings;
-    sonify::SonifyEngine *m_sonifier  = nullptr;
-    bool m_paused                    = true;
+    std::future<void> m_sonify_future;
     bool m_verbose                   = false;
     float m_cursor_width             = 5.0;
     sf::Color m_cursor_color         = sf::Color(255, 0, 0, 128);

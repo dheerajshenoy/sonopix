@@ -10,15 +10,11 @@ MainWindow::MainWindow() : m_sprite(m_tex)
 {
     m_context_settings.antiAliasingLevel = 8;
     m_context_settings.depthBits         = 24;
-    m_sonifier     = new sonify::SonifyEngine();
-    m_audio_engine = new AudioEngine();
+    m_sonifier     = std::make_unique<sonify::SonifyEngine>();
+    m_audio_engine = std::make_unique<AudioEngine>();
 }
 
-MainWindow::~MainWindow()
-{
-    delete m_sonifier;
-    delete m_audio_engine;
-}
+MainWindow::~MainWindow() = default;
 
 void
 MainWindow::create_window() noexcept
@@ -157,11 +153,14 @@ MainWindow::load_image(sf::Image &image, const std::string &filename)
     std::vector<std::uint8_t> data;
 
     std::string fixed_filename = filename;
-    // Replace "~" with the user's home directory if it exists
-    fixed_filename = fixed_filename.replace(
-        0, 1, std::getenv("HOME") ? std::getenv("HOME") : "~");
+    if (!fixed_filename.empty() && fixed_filename[0] == '~')
+    {
+        const char *home = std::getenv("HOME");
+        if (home)
+            fixed_filename.replace(0, 1, home);
+    }
 
-    if (!image.loadFromFile(filename))
+    if (!image.loadFromFile(fixed_filename))
     {
         throw std::runtime_error("Failed to load image from file: " + filename);
     }
@@ -258,16 +257,23 @@ MainWindow::handle_keypress_event(const sf::Event::KeyPressed *e) noexcept
 bool
 MainWindow::sonify()
 {
-    m_sonifier->sonify();
+    if (m_sonify_future.valid()
+        && m_sonify_future.wait_for(std::chrono::seconds(0))
+               != std::future_status::ready)
+        return false; // already running
 
-    auto audio_data = m_sonifier->const_audio();
-    if (audio_data.empty())
+    m_audio_engine->stop();
+    m_last_sample_index = 0;
+    m_window.setTitle(m_window_title + " [sonifying...]");
+
+    m_sonify_future = std::async(std::launch::async, [this]
     {
-        std::cerr << "SonifyEngine returned empty audio data\n";
-        return false;
-    }
-
-    m_audio_engine->set_data(std::move(audio_data), m_sonifier->sample_rate());
+        m_sonifier->sonify();
+        auto audio_data = m_sonifier->take_audio();
+        if (!audio_data.empty())
+            m_audio_engine->set_data(std::move(audio_data),
+                                     m_sonifier->sample_rate());
+    });
 
     return true;
 }
@@ -361,46 +367,42 @@ MainWindow::render() noexcept
 void
 MainWindow::update() noexcept
 {
-    move_cursor();
-    if (!m_audio_engine->is_playing())
+    if (m_sonify_future.valid()
+        && m_sonify_future.wait_for(std::chrono::seconds(0))
+               == std::future_status::ready)
     {
-        m_paused = true;
+        m_sonify_future = {};
+        m_window.setTitle(m_window_title);
     }
+
+    move_cursor();
 }
 
 void
 MainWindow::play() noexcept
 {
-    m_paused = false;
     m_audio_engine->play();
 }
 
 void
 MainWindow::pause() noexcept
 {
-    m_paused = true;
     m_audio_engine->pause();
 }
 
 void
 MainWindow::stop() noexcept
 {
-    m_paused = true;
     m_audio_engine->stop();
 }
 
 void
 MainWindow::toggle_pause() noexcept
 {
-    m_paused = !m_paused;
-    if (m_paused)
-    {
+    if (m_audio_engine->is_playing())
         pause();
-    }
     else
-    {
         play();
-    }
 }
 
 void
@@ -507,6 +509,30 @@ MainWindow::move_cursor() noexcept
             circle->setPosition({cx_disp - inner_r, cy_disp - inner_r});
         }
         break;
+    }
+}
+
+void
+MainWindow::set_cursor_width(float w) noexcept
+{
+    m_cursor_width = w;
+    if (!m_cursor)
+        return;
+    if (m_direction == sonify::Direction::CIRCLE_OUTWARDS
+        || m_direction == sonify::Direction::CIRCLE_INWARDS)
+    {
+        auto *circle = static_cast<sf::CircleShape *>(m_cursor.get());
+        circle->setOutlineThickness(w);
+    }
+    else
+    {
+        auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
+        const sf::Vector2f size = rect->getSize();
+        if (m_direction == sonify::Direction::LEFT_TO_RIGHT
+            || m_direction == sonify::Direction::RIGHT_TO_LEFT)
+            rect->setSize({w, size.y});
+        else
+            rect->setSize({size.x, w});
     }
 }
 
