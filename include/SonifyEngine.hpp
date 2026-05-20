@@ -27,9 +27,13 @@ struct SonifyContext
     int width;
     int height;
 
+    // Strip info (playback order, independent of scan direction)
+    int strip_index;
+    int strip_count;
+
     // Timing info for the generated audio
-    std::size_t sample_index;
-    std::size_t frame_index;
+    float t;       // time in seconds since start of audio
+    float strip_t; // normalized position within the current strip [0, 1)
 
     // Frequency mapping parameters
     sonify::FreqScale freq_scale;
@@ -226,22 +230,26 @@ private:
         return sum / static_cast<float>(m_img.width);
     }
 
-    void emit_strip(float brightness, int x, int y, int w, int h, int spu)
+    void emit_strip(float brightness, int x, int y, int w, int h, int spu,
+                    int strip_index, int strip_count)
     {
+        const float inv_spu = 1.0f / static_cast<float>(spu);
         for (int s = 0; s < spu; ++s)
         {
             SonifyContext ctx{
-                .sample_rate  = m_sample_rate,
-                .brightness   = brightness,
-                .x            = x,
-                .y            = y,
-                .width        = w,
-                .height       = h,
-                .sample_index = m_audio_data.size(),
-                .frame_index  = static_cast<std::size_t>(s),
-                .freq_scale   = m_freq_map.scale,
-                .fmin         = m_freq_map.min,
-                .fmax         = m_freq_map.max,
+                .sample_rate = m_sample_rate,
+                .brightness  = brightness,
+                .x           = x,
+                .y           = y,
+                .width       = w,
+                .height      = h,
+                .strip_index = strip_index,
+                .strip_count = strip_count,
+                .t           = static_cast<float>(m_audio_data.size()) / m_sample_rate,
+                .strip_t     = static_cast<float>(s) * inv_spu,
+                .freq_scale  = m_freq_map.scale,
+                .fmin        = m_freq_map.min,
+                .fmax        = m_freq_map.max,
             };
             m_audio_data.push_back(m_sonify_func(ctx));
         }
@@ -255,7 +263,7 @@ private:
         m_audio_data.clear();
         m_audio_data.reserve(static_cast<std::size_t>(w) * spu);
         for (int x = 0; x < w; ++x)
-            emit_strip(column_brightness(x), x, 0, w, h, spu);
+            emit_strip(column_brightness(x), x, 0, w, h, spu, x, w);
     }
 
     void sonify_right_to_left()
@@ -266,7 +274,7 @@ private:
         m_audio_data.clear();
         m_audio_data.reserve(static_cast<std::size_t>(w) * spu);
         for (int x = w - 1; x >= 0; --x)
-            emit_strip(column_brightness(x), x, 0, w, h, spu);
+            emit_strip(column_brightness(x), x, 0, w, h, spu, (w - 1) - x, w);
     }
 
     void sonify_top_to_bottom()
@@ -277,7 +285,7 @@ private:
         m_audio_data.clear();
         m_audio_data.reserve(static_cast<std::size_t>(h) * spu);
         for (int y = 0; y < h; ++y)
-            emit_strip(row_brightness(y), 0, y, w, h, spu);
+            emit_strip(row_brightness(y), 0, y, w, h, spu, y, h);
     }
 
     void sonify_bottom_to_top()
@@ -288,7 +296,7 @@ private:
         m_audio_data.clear();
         m_audio_data.reserve(static_cast<std::size_t>(h) * spu);
         for (int y = h - 1; y >= 0; --y)
-            emit_strip(row_brightness(y), 0, y, w, h, spu);
+            emit_strip(row_brightness(y), 0, y, w, h, spu, (h - 1) - y, h);
     }
 
     // Shared implementation for CIRCLE_OUTWARDS (outwards=true) and
@@ -323,13 +331,14 @@ private:
         m_audio_data.clear();
         m_audio_data.reserve(static_cast<std::size_t>(max_r + 1) * spu);
 
+        const int strip_count = max_r + 1;
         for (int i = 0; i <= max_r; ++i)
         {
             const int r = outwards ? i : (max_r - i);
             const float brightness = ring_count[r] > 0
                 ? ring_sum[r] / static_cast<float>(ring_count[r])
                 : 0.0f;
-            emit_strip(brightness, r, 0, w, h, spu);
+            emit_strip(brightness, r, 0, w, h, spu, i, strip_count);
         }
     }
 };

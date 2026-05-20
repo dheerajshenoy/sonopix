@@ -22,6 +22,8 @@
 
 #### Lua scripting
 
+- `sonopix.opts.sonify_func` — custom sonification function; called per sample with a reused `SonifyContext` table (`brightness`, `x`, `y`, `width`, `height`, `fmin`, `fmax`, `scale`, `sample_rate`, `sample_index`, `frame_index`) and must return a float in `[-1, 1]`
+
 - Add lua scripting support
     - `sonopix` table
     - `sonopix.opts` table

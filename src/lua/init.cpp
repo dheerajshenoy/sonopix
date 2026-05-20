@@ -219,6 +219,72 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         return 0;
     }
 
+    // sonopix.opts.sonify_func
+    if (strcmp(key, "sonify_func") == 0)
+    {
+        if (!lua_isfunction(L, 3))
+            return luaL_error(L, "sonify_func must be a function");
+
+        lua_pushvalue(L, 3);
+        lua_setfield(L, LUA_REGISTRYINDEX, "sonopix_sonify_func");
+
+        // Persistent context table — reused every call to avoid per-sample alloc
+        lua_newtable(L);
+        lua_setfield(L, LUA_REGISTRYINDEX, "sonopix_ctx_table");
+
+        lua_State *Lc = L;
+        window->sonifier()->set_sonify_func(
+            [Lc](const sonify::SonifyContext &ctx) -> float
+            {
+                lua_getfield(Lc, LUA_REGISTRYINDEX, "sonopix_sonify_func");
+                lua_getfield(Lc, LUA_REGISTRYINDEX, "sonopix_ctx_table");
+
+                lua_pushnumber(Lc, ctx.sample_rate);
+                lua_setfield(Lc, -2, "sample_rate");
+                lua_pushnumber(Lc, ctx.brightness);
+                lua_setfield(Lc, -2, "brightness");
+                lua_pushinteger(Lc, ctx.x);
+                lua_setfield(Lc, -2, "x");
+                lua_pushinteger(Lc, ctx.y);
+                lua_setfield(Lc, -2, "y");
+                lua_pushinteger(Lc, ctx.width);
+                lua_setfield(Lc, -2, "width");
+                lua_pushinteger(Lc, ctx.height);
+                lua_setfield(Lc, -2, "height");
+                lua_pushnumber(Lc, ctx.t);
+                lua_setfield(Lc, -2, "t");
+                lua_pushnumber(Lc, ctx.strip_t);
+                lua_setfield(Lc, -2, "strip_t");
+                lua_pushinteger(Lc, ctx.strip_index);
+                lua_setfield(Lc, -2, "strip_index");
+                lua_pushinteger(Lc, ctx.strip_count);
+                lua_setfield(Lc, -2, "strip_count");
+                lua_pushnumber(Lc, ctx.fmin);
+                lua_setfield(Lc, -2, "fmin");
+                lua_pushnumber(Lc, ctx.fmax);
+                lua_setfield(Lc, -2, "fmax");
+
+                const char *scale_str = "linear";
+                if (ctx.freq_scale == sonify::FreqScale::LOG)
+                    scale_str = "log";
+                else if (ctx.freq_scale == sonify::FreqScale::EXPONENTIAL)
+                    scale_str = "exponential";
+                lua_pushstring(Lc, scale_str);
+                lua_setfield(Lc, -2, "scale");
+
+                if (lua_pcall(Lc, 1, 1, 0) != LUA_OK)
+                {
+                    lua_pop(Lc, 1);
+                    return 0.0f;
+                }
+
+                const float result = static_cast<float>(lua_tonumber(Lc, -1));
+                lua_pop(Lc, 1);
+                return result;
+            });
+        return 0;
+    }
+
     // sonopix.opts.cursor = { ... }  — forward each key to the cursor sub-table
     if (strcmp(key, "cursor") == 0)
     {
@@ -551,6 +617,13 @@ MainWindow::init_lua_sonopix_opts() noexcept
         if (strcmp(key, "antialiasing_level") == 0)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(window->antialiasing_level()));
+            return 1;
+        }
+
+        // sonopix.opts.sonify_func
+        if (strcmp(key, "sonify_func") == 0)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_sonify_func");
             return 1;
         }
 
