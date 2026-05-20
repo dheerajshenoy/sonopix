@@ -24,6 +24,11 @@ public:
         return m_sonifier;
     }
 
+    inline AudioEngine *audio_engine() noexcept
+    {
+        return m_audio_engine;
+    }
+
     inline void set_direction(sonify::Direction direction) noexcept
     {
         m_direction = direction;

@@ -1,21 +1,6 @@
 ---@meta
 sonopix = sonopix or {}
 
----@class SonopixCursorOpts
----@field width number Width of the playback cursor in pixels (must be > 0)
----@field color string Cursor color as "#RRGGBB" or "#RRGGBBAA" (default: "#FF000080")
-sonopix.opts.cursor = {}
-
----@class SonopixOpts
----@field direction "left-to-right"|"right-to-left"|"top-to-bottom"|"bottom-to-top"|"circle-outwards"|"circle-inwards" Scan direction
----@field frequency_range number[] Two-element table {fmin, fmax} in Hz (must satisfy 0 < fmin < fmax)
----@field spu number Seconds per unit (column or row); must be > 0
----@field cursor SonopixCursorOpts Cursor appearance options
--- Options can be set individually or as a complete table:
---   sonopix.opts.direction = "top-to-bottom"
---   sonopix.opts = { direction = "top-to-bottom", spu = 0.01, frequency_range = { 200, 8000 }, cursor = { width = 3 } }
-sonopix.opts = {}
-
 ---@function Loads an image file and opens it in Sonopix
 ---@param filepath string The path to the image file
 ---@return boolean Returns true if the file was successfully opened, false otherwise
@@ -38,6 +23,15 @@ sonopix.stop = function () end
 ---@returns boolean Returns true if audio is currently playing, false otherwise
 sonopix.is_playing = function () end
 
+---@function Checks if Sonopix is currently paused
+---@returns boolean Returns true if audio is currently paused, false otherwise
+sonopix.is_paused = function () end
+
+----@function Checks if Sonopix is currently stopped
+---@returns boolean Returns true if audio is currently stopped, false otherwise
+sonopix.is_stopped = function () end
+
 ---@function Gets the current time position of the audio in Sonopix
 ---@returns number Returns the current time position in seconds
 sonopix.current_time = function () end
+

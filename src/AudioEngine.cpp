@@ -4,8 +4,8 @@
 #include "logging.hpp"
 #include "utils.hpp"
 
-AudioEngine::AudioEngine(float sample_rate)
-    : m_sample_rate(sample_rate), m_sound(m_sound_buffer)
+AudioEngine::AudioEngine()
+    : m_sound(m_sound_buffer)
 {
 }
 
@@ -30,9 +30,10 @@ AudioEngine::stop() noexcept
 // Sets the audio data for the engine. The input is a vector of floats
 // representing audio samples.
 void
-AudioEngine::set_data(std::vector<float> &&audio_data)
+AudioEngine::set_data(std::vector<float> &&audio_data, float sample_rate)
 {
-    m_dataf = std::move(audio_data);
+    m_sample_rate = sample_rate;
+    m_dataf       = std::move(audio_data);
     m_data  = convert_to_int16(m_dataf);
 
     std::vector<sf::SoundChannel> channelMap = {sf::SoundChannel::Mono};

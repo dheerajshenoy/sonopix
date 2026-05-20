@@ -9,7 +9,7 @@ MainWindow::MainWindow() : m_sprite(m_tex)
 {
     m_sonifier = new sonify::SonifyEngine();
     m_window   = sf::RenderWindow(sf::VideoMode(m_window_size), m_window_title);
-    m_audio_engine = new AudioEngine(m_sonifier->sample_rate());
+    m_audio_engine = new AudioEngine();
 }
 
 MainWindow::~MainWindow()
@@ -256,7 +256,7 @@ MainWindow::sonify()
         return false;
     }
 
-    m_audio_engine->set_data(std::move(audio_data));
+    m_audio_engine->set_data(std::move(audio_data), m_sonifier->sample_rate());
 
     return true;
 }
@@ -343,18 +343,21 @@ MainWindow::update() noexcept
 void
 MainWindow::play() noexcept
 {
+    m_paused = false;
     m_audio_engine->play();
 }
 
 void
 MainWindow::pause() noexcept
 {
+    m_paused = true;
     m_audio_engine->pause();
 }
 
 void
 MainWindow::stop() noexcept
 {
+    m_paused = true;
     m_audio_engine->stop();
 }
 
@@ -458,9 +461,8 @@ std::string
 MainWindow::cursor_color() const noexcept
 {
     char buf[10];
-    std::snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X",
-                  m_cursor_color.r, m_cursor_color.g,
-                  m_cursor_color.b, m_cursor_color.a);
+    std::snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", m_cursor_color.r,
+                  m_cursor_color.g, m_cursor_color.b, m_cursor_color.a);
     return std::string(buf);
 }
 

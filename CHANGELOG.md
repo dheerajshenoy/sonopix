@@ -29,3 +29,4 @@
 - Fix `sonopix.opts` metatable not being attached (global was already popped when opts table was set)
 - Fix `sonopix.opts = { ... }` not applying options — `__newindex` was never triggered because `"opts"` existed as a raw key in the `sonopix` table
 - Fix setting `direction` via Lua not updating cursor orientation — `MainWindow::m_direction` was not updated, only the sonifier's copy
+- Fix pausing playing from lua not working properly

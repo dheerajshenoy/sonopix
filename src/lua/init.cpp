@@ -179,6 +179,16 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         return 0;
     }
 
+    // sonopix.opts.channel_count
+    if (strcmp(key, "channel_count") == 0)
+    {
+        int count = static_cast<int>(luaL_checkinteger(L, 3));
+        if (count <= 0)
+            return luaL_error(L, "Invalid channel count: %d", count);
+        window->audio_engine()->set_channel_count(count);
+        return 0;
+    }
+
     // sonopix.opts.spu
     if (strcmp(key, "spu") == 0)
     {
@@ -186,6 +196,16 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         if (spu <= 0.0f)
             return luaL_error(L, "Invalid seconds per unit: %f", spu);
         sonifier->set_secs_per_unit(spu);
+        return 0;
+    }
+
+    // sonopix.opts.sample_rate
+    if (strcmp(key, "sample_rate") == 0)
+    {
+        float rate = static_cast<float>(luaL_checknumber(L, 3));
+        if (rate <= 0.0f)
+            return luaL_error(L, "Invalid sample rate: %f", rate);
+        sonifier->set_sample_rate(rate);
         return 0;
     }
 
@@ -339,8 +359,11 @@ MainWindow::init_lua_sonopix_opts() noexcept
             lua_pushnil(L);
             return 1;
         }
+
         MainWindow *window
             = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+
+        // sonopix.opts.direction
         if (strcmp(key, "direction") == 0)
         {
             const char *dir_str = nullptr;
@@ -370,6 +393,24 @@ MainWindow::init_lua_sonopix_opts() noexcept
             lua_pushstring(L, dir_str);
             return 1;
         }
+
+        // sonopix.opts.spu
+        if (strcmp(key, "spu") == 0)
+        {
+            sonify::SonifyEngine *sonifier = window->sonifier();
+            lua_pushnumber(L, sonifier->secs_per_unit());
+            return 1;
+        }
+
+        // sonopix.opts.sample_rate
+        if (strcmp(key, "sample_rate") == 0)
+        {
+            sonify::SonifyEngine *sonifier = window->sonifier();
+            lua_pushnumber(L, sonifier->sample_rate());
+            return 1;
+        }
+
+        // sonopix.opts.frequency_range
         if (strcmp(key, "frequency_range") == 0)
         {
             sonify::FreqMap fm = window->sonifier()->freq_map();
@@ -380,11 +421,21 @@ MainWindow::init_lua_sonopix_opts() noexcept
             lua_rawseti(L, -2, 2);
             return 1;
         }
+
+        // sonopix.opts.cursor
         if (strcmp(key, "cursor") == 0)
         {
             lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_cursor_opts");
             return 1;
         }
+
+        // sonopix.opts.channel_count
+        if (strcmp(key, "channel_count") == 0)
+        {
+            lua_pushinteger(L, window->audio_engine()->channel_count());
+            return 1;
+        }
+
         lua_pushvalue(L, 2);
         lua_rawget(L, 1);
         return 1;
