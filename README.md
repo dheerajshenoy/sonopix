@@ -113,6 +113,15 @@ end
 | `amplitude` | number | Master gain applied after sonification (default: `1.0`) |
 | `loop` | boolean | Loop playback when audio ends (default: `false`); also toggled with `L` |
 | `image_rotation` | number | Rotation of the displayed image in degrees (default: `0`); cursor tracks the rotated image |
+| `image_effects.grayscale` | number | Desaturate toward greyscale; `0` = off, `1` = full (default: `0`) |
+| `image_effects.brightness` | number | Additive brightness shift in `[-1, 1]` (default: `0`) |
+| `image_effects.saturation` | number | Saturation multiplier; `0` = greyscale, `1` = original (default: `1`) |
+| `image_effects.contrast` | number | Contrast multiplier around mid-grey; `1` = original (default: `1`) |
+| `image_effects.hue` | number | Hue rotation in degrees `[0, 360)` (default: `0`) |
+| `image_effects.blur` | number | Gaussian blur kernel radius in texels; `0` = off (default: `0`) |
+| `image_effects.sharpen` | number | Laplacian sharpen strength; `0` = off (default: `0`) |
+| `image_effects.threshold` | number | Luminance cutoff `[0, 1]`; pixels above → white, below → black; negative = off (default: `-1`) |
+| `image_effects.invert` | boolean | Invert all colours (default: `false`) |
 | `waveform.visible` | boolean | Show/hide the RMS waveform strip (default: `true`) |
 | `waveform.height` | integer | Height of the waveform strip in pixels (default: `40`) |
 | `waveform.color` | string | Waveform bar color as `"#RRGGBB"` or `"#RRGGBBAA"` |

@@ -13,13 +13,17 @@ add_executable(${PROJECT_NAME}
     src/main.cpp
     src/MainWindow.cpp
     src/AudioEngine.cpp
+    src/shaders/image_effects.cpp
 )
 
 add_compile_definitions(APP_VERSION="${PROJECT_VERSION}"
     APP_NAME="${PROJECT_NAME}"
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
 
 
 target_include_directories(${PROJECT_NAME} PRIVATE

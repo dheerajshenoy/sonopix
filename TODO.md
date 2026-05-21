@@ -18,8 +18,8 @@
 ## Image
 
 - [ ] **Region of interest** — allow selecting a rectangle to sonify instead of the whole image
-- [ ] **Pre-processing filters** — blur, sharpen, edge-detect, threshold before sonification
-- [ ] **Grayscale mode options** — choose between luminance, average, max channel, or a single channel (R/G/B)
+- [x] **Pre-processing filters** — blur, sharpen, edge-detect, threshold before sonification
+- [x] **Grayscale mode options** — choose between luminance, average, max channel, or a single channel (R/G/B)
 
 ## UI
 

@@ -1,11 +1,14 @@
 #include "MainWindow.hpp"
 
 #include "lua/init.cpp"
+#include "shaders/image_effects.hpp"
 #include "utils.hpp"
 
 #include <SFML/Graphics/PrimitiveType.hpp>
+#include <SFML/Graphics/RenderStates.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
 #include <SFML/Window/ContextSettings.hpp>
+#include <cmath>
 #include <print>
 
 MainWindow::MainWindow() : m_sprite(m_tex)
@@ -256,6 +259,7 @@ MainWindow::handle_resize_event(const sf::Event::Resized *e) noexcept
     init_oscilloscope();
     if (!m_audio_engine->dataf().empty())
         build_waveform();
+    if (m_shader_active) sync_shader(); // refresh u_texel_size for new image
 }
 
 void
@@ -790,9 +794,70 @@ MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
 }
 
 void
+MainWindow::init_image_shader() noexcept
+{
+    if (!sf::Shader::isAvailable())
+    {
+        std::cerr << "warning: shaders not supported; image effects disabled\n";
+        return;
+    }
+    if (!m_image_shader.loadFromMemory(k_image_frag_shader,
+                                       sf::Shader::Type::Fragment))
+    {
+        std::cerr << "warning: failed to compile image shader; effects disabled\n";
+        return;
+    }
+    m_image_shader.setUniform("texture", sf::Shader::CurrentTexture);
+    sync_shader();
+    m_shader_active = true;
+}
+
+void
+MainWindow::sync_shader() noexcept
+{
+    const auto &e = m_config.image_effects;
+    const sf::Vector2f ts = m_tex_size.x > 0
+        ? sf::Vector2f{1.f / m_tex_size.x, 1.f / m_tex_size.y}
+        : sf::Vector2f{1.f, 1.f};
+    m_image_shader.setUniform("u_texel_size", ts);
+    m_image_shader.setUniform("u_grayscale",  e.grayscale);
+    m_image_shader.setUniform("u_brightness", e.brightness);
+    m_image_shader.setUniform("u_saturation", e.saturation);
+    m_image_shader.setUniform("u_contrast",   e.contrast);
+    m_image_shader.setUniform("u_hue",        e.hue);
+    m_image_shader.setUniform("u_blur",       e.blur);
+    m_image_shader.setUniform("u_sharpen",    e.sharpen);
+    m_image_shader.setUniform("u_threshold",  e.threshold);
+    m_image_shader.setUniform("u_invert",     e.invert ? 1 : 0);
+}
+
+void
+MainWindow::set_effect(const char *name, float value) noexcept
+{
+    auto &e = m_config.image_effects;
+    if      (strcmp(name, "grayscale")  == 0) e.grayscale  = value;
+    else if (strcmp(name, "brightness") == 0) e.brightness = value;
+    else if (strcmp(name, "saturation") == 0) e.saturation = value;
+    else if (strcmp(name, "contrast")   == 0) e.contrast   = value;
+    else if (strcmp(name, "hue")        == 0) e.hue        = value;
+    else if (strcmp(name, "blur")       == 0) e.blur       = value;
+    else if (strcmp(name, "sharpen")    == 0) e.sharpen    = value;
+    else if (strcmp(name, "threshold")  == 0) e.threshold  = value;
+    if (m_shader_active) sync_shader();
+}
+
+void
+MainWindow::set_effect_invert(bool value) noexcept
+{
+    m_config.image_effects.invert = value;
+    if (m_shader_active) sync_shader();
+}
+
+void
 MainWindow::main_loop()
 {
     create_window();
+    init_image_shader();
 
     if (!m_output_file.empty())
     {
@@ -817,7 +882,14 @@ MainWindow::render() noexcept
 {
     m_window.clear();
 
-    m_window.draw(m_sprite);
+    if (m_shader_active)
+    {
+        sf::RenderStates states;
+        states.shader = &m_image_shader;
+        m_window.draw(m_sprite, states);
+    }
+    else
+        m_window.draw(m_sprite);
     if (m_cursor)
         m_window.draw(*m_cursor);
     if (m_config.waveform.visible)

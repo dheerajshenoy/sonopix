@@ -32,8 +32,22 @@ struct OscilloscopeOpts
     sf::Color color   = sf::Color(0, 255, 180, 220);
 };
 
+struct ImageEffectsOpts
+{
+    float grayscale  = 0.f;   // 0 = off, 1 = full grayscale
+    float brightness = 0.f;   // -1 to 1 additive shift
+    float saturation = 1.f;   // 0 = greyscale, 1 = original, >1 = vivid
+    float contrast   = 1.f;   // 0 = flat grey, 1 = original, >1 = high contrast
+    float hue        = 0.f;   // degrees to shift hue (0–360)
+    float blur       = 0.f;   // 0 = off, >0 = Gaussian radius in texels
+    float sharpen    = 0.f;   // 0 = off, >0 = Laplacian strength
+    float threshold  = -1.f;  // <0 = off, 0–1 = luminance cutoff (applied last)
+    bool  invert     = false;
+};
+
 struct Config
 {
+    ImageEffectsOpts image_effects;
     CursorOpts cursor;
     ProgressBarOpts progress_bar;
     WaveformOpts waveform;

@@ -41,6 +41,17 @@ sonopix = sonopix or {}
 ---@field height? integer Height of the progress bar in pixels (default: 4)
 ---@field color? string Fill color as "#RRGGBB" or "#RRGGBBAA" (default: "#FFFFFFC8")
 
+---@class ImageEffectsOpts
+---@field grayscale?  number Desaturate toward greyscale; 0 = off, 1 = full greyscale (default: 0)
+---@field brightness? number Additive brightness shift in [-1, 1] (default: 0)
+---@field saturation? number Colour saturation multiplier; 0 = greyscale, 1 = original, >1 = vivid (default: 1)
+---@field contrast?   number Contrast multiplier around mid-grey; 0 = flat, 1 = original (default: 1)
+---@field hue?        number Hue rotation in degrees [0, 360) (default: 0)
+---@field blur?       number Gaussian blur radius in texels; 0 = off (default: 0)
+---@field sharpen?    number Laplacian sharpen strength; 0 = off (default: 0)
+---@field threshold?  number Luminance cutoff [0, 1]: pixels above → white, below → black; negative = off (default: -1)
+---@field invert?     boolean Invert all colours (default: false)
+
 ---@class SonopixOpts
 ---@field direction? "left-to-right"|"right-to-left"|"top-to-bottom"|"bottom-to-top"|"circle-outwards"|"circle-inwards"|"rotate-cw"|"rotate-ccw" Scan direction
 ---@field frequency? FrequencyOpts Frequency mapping options
@@ -52,6 +63,7 @@ sonopix = sonopix or {}
 ---@field sample_rate? number Sample rate in Hz (must be > 0)
 ---@field channel_count? integer Number of audio channels (must be > 0)
 ---@field amplitude? number Master gain applied to the audio buffer after sonification (default: 1.0, must be >= 0)
+---@field image_effects? ImageEffectsOpts Real-time image effects applied via GLSL shader
 ---@field loop? boolean Loop playback when the audio reaches the end (default: false)
 ---@field image_rotation? number Rotation of the displayed image in degrees (default: 0); cursor tracks the rotated image
 ---@field antialiasing_level? integer MSAA sample count (0 = off, 2/4/8 typical); applied at window creation

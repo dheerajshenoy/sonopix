@@ -6,6 +6,7 @@
 #include "thirdparty/argparse.hpp"
 
 #include <SFML/Graphics.hpp>
+#include <SFML/Graphics/Shader.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Window.hpp>
@@ -88,6 +89,11 @@ public:
         return m_config.image_rotation;
     }
 
+    inline ImageEffectsOpts &image_effects() noexcept { return m_config.image_effects; }
+    inline const ImageEffectsOpts &image_effects() const noexcept { return m_config.image_effects; }
+    void set_effect(const char *name, float value) noexcept;
+    void set_effect_invert(bool value) noexcept;
+
     inline void set_antialiasing_level(unsigned int level) noexcept
     {
         m_config.window.antiAliasingLevel = level;
@@ -166,6 +172,8 @@ private:
     void update() noexcept;
     void move_cursor() noexcept;
 
+    void init_image_shader() noexcept;
+    void sync_shader() noexcept;
     void init_cursor(float scale                 = 1.0f,
                      sf::Vector2<float> position = {}) noexcept;
     void init_playback_bar() noexcept;
@@ -177,6 +185,8 @@ private:
     void update_playback_bar() noexcept;
     void create_window() noexcept;
 
+    sf::Shader m_image_shader;
+    bool m_shader_active = false;
     std::unique_ptr<AudioEngine> m_audio_engine;
     std::unique_ptr<sonify::SonifyEngine> m_sonifier;
     std::string m_window_title = "Sonopix";

@@ -36,6 +36,7 @@
 - `sonopix.opts = { ... }` table assignment now works for all opts including nested `cursor` and `frequency`
 
 - **Image rotation** — `sonopix.opts.image_rotation` sets the display angle in degrees (default `0`); image pivots around its center; scale is computed from the axis-aligned bounding box of the rotated image so edges never clip; cursor tracks pixel positions on the rotated image using the sprite transform
+- **`sonopix.opts.image_effects`** sub-table — real-time GPU image effects via GLSL fragment shader: `grayscale`, `brightness`, `saturation`, `contrast`, `hue`, `blur` (Gaussian), `sharpen` (Laplacian), `threshold` (luminance cutoff), `invert`; supports both inline (`sonopix.opts.image_effects.blur = 2`) and table form; gracefully disabled if shaders are unavailable; shader source lives in `src/shaders/image_effects.cpp`
 
 ### Features (post-0.1)
 

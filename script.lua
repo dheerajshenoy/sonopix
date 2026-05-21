@@ -25,7 +25,11 @@ local sonify_func = function(ctx)
 end
 
 s.opts = {
-    image_rotation = 45,
+    image_rotation = 0,
+    image_effects = {
+        blur = 40,
+        invert = true,
+    },
     show_progress_bar = true,
     direction = "circle-outwards",
     frequency = {

@@ -536,6 +536,23 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         return 0;
     }
 
+    // sonopix.opts.image_effects
+    if (strcmp(key, "image_effects") == 0)
+    {
+        if (!lua_istable(L, 3))
+            return luaL_error(L, "effects must be a table");
+        lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_image_effects_opts");
+        lua_pushnil(L);
+        while (lua_next(L, 3) != 0)
+        {
+            lua_pushvalue(L, -2);
+            lua_pushvalue(L, -2);
+            lua_settable(L, 4);
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
     // sonopix.opts.window_title
     if (strcmp(key, "window_title") == 0)
     {
@@ -994,6 +1011,54 @@ MainWindow::init_lua_sonopix_opts() noexcept
     lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_progress_bar_opts");
     lua_pop(m_L, 1);
 
+    // --- effects sub-table ---
+    lua_newtable(m_L);
+    lua_newtable(m_L);
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key) { lua_pushnil(L); return 1; }
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        const auto &e = w->m_config.image_effects;
+        if (strcmp(key, "grayscale")  == 0) { lua_pushnumber(L, e.grayscale);  return 1; }
+        if (strcmp(key, "brightness") == 0) { lua_pushnumber(L, e.brightness); return 1; }
+        if (strcmp(key, "saturation") == 0) { lua_pushnumber(L, e.saturation); return 1; }
+        if (strcmp(key, "contrast")   == 0) { lua_pushnumber(L, e.contrast);   return 1; }
+        if (strcmp(key, "hue")        == 0) { lua_pushnumber(L, e.hue);        return 1; }
+        if (strcmp(key, "blur")       == 0) { lua_pushnumber(L, e.blur);       return 1; }
+        if (strcmp(key, "sharpen")    == 0) { lua_pushnumber(L, e.sharpen);    return 1; }
+        if (strcmp(key, "threshold")  == 0) { lua_pushnumber(L, e.threshold);  return 1; }
+        if (strcmp(key, "invert")     == 0) { lua_pushboolean(L, e.invert ? 1 : 0); return 1; }
+        lua_pushvalue(L, 2); lua_rawget(L, 1);
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "__index");
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key) return 0;
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        if (strcmp(key, "invert") == 0)
+        {
+            luaL_checktype(L, 3, LUA_TBOOLEAN);
+            w->set_effect_invert(lua_toboolean(L, 3) != 0);
+            return 0;
+        }
+        // All other fields are floats
+        w->set_effect(key, static_cast<float>(luaL_checknumber(L, 3)));
+        return 0;
+    }, 1);
+    lua_setfield(m_L, -2, "__newindex");
+
+    lua_setmetatable(m_L, -2);
+    lua_pushvalue(m_L, -1);
+    lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_image_effects_opts");
+    lua_pop(m_L, 1);
+
     // --- opts table ---
     lua_newtable(m_L); // sonopix.opts table
     lua_newtable(m_L); // opts metatable
@@ -1132,6 +1197,13 @@ MainWindow::init_lua_sonopix_opts() noexcept
         if (strcmp(key, "progress_bar") == 0)
         {
             lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_progress_bar_opts");
+            return 1;
+        }
+
+        // sonopix.opts.effects
+        if (strcmp(key, "effects") == 0)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_image_effects_opts");
             return 1;
         }
 
