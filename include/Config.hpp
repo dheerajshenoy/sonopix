@@ -60,6 +60,8 @@ struct AudioEffectsOpts
     // distortion
     float distortion_drive = 0.5f;  // 0–1
     float distortion_mix   = 0.0f;  // 0 = off
+    // custom process func
+    bool has_process_func  = false;
 };
 
 struct Config

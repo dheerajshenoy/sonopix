@@ -140,13 +140,14 @@ end
 | `window_title` | string | Window title string |
 | `window_size` | table | `{ width = W, height = H }` window dimensions |
 | `traversal_func` | function | Custom pixel order: `(strip_index, total, w, h) → x, y` (see below) |
-| `sonify_func` | function | Custom sonification function: `(ctx) → float` (see below) |
+| `sonify_func` | function | Custom sonification function: `(ctx) → number[]` (see below) |
+| `audio_effects.process_func` | function | Post-sonification DSP: `(samples, sample_rate) → number[]` (see below) |
 
 ### Custom traversal order
 
-For common pixel-level traversals prefer the built-in `"zigzag-h"` and `"zigzag-v"` directions — they run entirely in C++ with no Lua overhead.
-
 For arbitrary orderings set `sonopix.opts.traversal_func`. The function is called **once per strip** by C++ with `(strip_index, total, width, height)` and must return `(x, y)` for that strip. Each pixel becomes one audio strip whose brightness is that single pixel's brightness. A point cursor tracks the moving pixel during playback.
+
+Use `sonopix.pixel_brightness(x, y)` to read pixel brightness `[0, 1]` at any coordinate — useful for building data-driven traversal orders before sonification starts.
 
 ```lua
 -- Horizontal zigzag (equivalent to built-in "zigzag-h")
@@ -176,19 +177,23 @@ end
 
 ### Custom sonification function
 
-Set `sonopix.opts.sonify_func` to replace the built-in sine oscillator. The function is called once per audio sample and must return a float in `[-1, 1]`.
+Set `sonopix.opts.sonify_func` to replace the built-in sine oscillator. The function is called **once per strip** and must return a table of `ctx.n_samples` floats in `[-1, 1]`. Use upvalues for state (oscillator phase etc.) that must persist across strips.
 
 ```lua
 local phase = 0.0
 
 sonopix.opts.sonify_func = function(ctx)
-    local freq = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
-    phase = phase + 2 * math.pi * freq / ctx.sample_rate
-    return ctx.brightness * math.sin(phase)
+    local freq    = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
+    local samples = {}
+    for i = 1, ctx.n_samples do
+        phase      = phase + 2 * math.pi * freq / ctx.sample_rate
+        samples[i] = ctx.brightness * math.sin(phase)
+    end
+    return samples
 end
 ```
 
-Use upvalues (locals captured by the closure) for persistent state like oscillator phase — they survive across strips and samples.
+Use upvalues (locals captured by the closure) for persistent state like oscillator phase — they survive across strips.
 
 #### Context fields
 
@@ -201,8 +206,8 @@ Use upvalues (locals captured by the closure) for persistent state like oscillat
 | `height` | integer | Image height in pixels |
 | `strip_index` | integer | Playback-order index of the current strip (0 = first) |
 | `strip_count` | integer | Total number of strips |
-| `t` | number | Time in seconds since the start of audio |
-| `strip_t` | number | Normalized position within the current strip `[0, 1)` |
+| `n_samples` | integer | Number of samples to generate for this strip |
+| `t` | number | Time in seconds since the start of audio (at strip start) |
 | `fmin` | number | Minimum frequency in Hz |
 | `fmax` | number | Maximum frequency in Hz |
 | `scale` | string | Frequency scale |
@@ -217,11 +222,13 @@ sonopix.opts.sonify_func = function(ctx)
     local carrier   = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
     local mod_ratio = 1 + (ctx.strip_index / ctx.strip_count) * 3
     local mod_depth = 200 * ctx.brightness
-
-    mod_phase = mod_phase + 2 * math.pi * (carrier * mod_ratio) / ctx.sample_rate
-    phase     = phase     + 2 * math.pi * (carrier + mod_depth * math.sin(mod_phase)) / ctx.sample_rate
-
-    return ctx.brightness * math.sin(phase)
+    local samples   = {}
+    for i = 1, ctx.n_samples do
+        mod_phase  = mod_phase + 2 * math.pi * (carrier * mod_ratio) / ctx.sample_rate
+        phase      = phase     + 2 * math.pi * (carrier + mod_depth * math.sin(mod_phase)) / ctx.sample_rate
+        samples[i] = ctx.brightness * math.sin(phase)
+    end
+    return samples
 end
 ```
 
@@ -231,10 +238,14 @@ end
 local phase = 0.0
 
 sonopix.opts.sonify_func = function(ctx)
-    local freq  = ctx.fmin + ctx.brightness * (ctx.fmax - ctx.fmin)
-    local env   = math.sin(math.pi * ctx.strip_t)  -- half-sine per strip
-    phase = phase + 2 * math.pi * freq / ctx.sample_rate
-    return env * ctx.brightness * math.sin(phase)
+    local freq    = ctx.fmin + ctx.brightness * (ctx.fmax - ctx.fmin)
+    local samples = {}
+    for i = 1, ctx.n_samples do
+        local env  = math.sin(math.pi * (i - 1) / ctx.n_samples)  -- half-sine envelope
+        phase      = phase + 2 * math.pi * freq / ctx.sample_rate
+        samples[i] = env * ctx.brightness * math.sin(phase)
+    end
+    return samples
 end
 ```
 
@@ -244,12 +255,56 @@ end
 local phases = {0, 0, 0, 0}
 
 sonopix.opts.sonify_func = function(ctx)
-    local f   = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
-    local out = 0.0
-    for i = 1, #phases do
-        phases[i] = phases[i] + 2 * math.pi * f * i / ctx.sample_rate
-        out = out + (1 / i) * math.sin(phases[i])
+    local f       = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
+    local samples = {}
+    for i = 1, ctx.n_samples do
+        local s = 0.0
+        for h = 1, #phases do
+            phases[h] = phases[h] + 2 * math.pi * f * h / ctx.sample_rate
+            s = s + (1 / h) * math.sin(phases[h])
+        end
+        samples[i] = ctx.brightness * s * 0.5
     end
-    return ctx.brightness * out * 0.5
+    return samples
+end
+```
+
+### Custom audio post-processing
+
+Set `sonopix.opts.audio_effects.process_func` to apply arbitrary DSP to the final buffer after sonification and all built-in effects. Called once with the full samples table and the sample rate; return a (possibly modified) samples table.
+
+```lua
+-- Normalise to peak, then apply a simple DC-block
+sonopix.opts.audio_effects.process_func = function(samples, sr)
+    local peak = 0.0
+    for i = 1, #samples do
+        if math.abs(samples[i]) > peak then peak = math.abs(samples[i]) end
+    end
+    if peak > 0 then
+        for i = 1, #samples do samples[i] = samples[i] / peak end
+    end
+    return samples
+end
+```
+
+### Data-driven traversal with `sonopix.pixel_brightness`
+
+Use `sonopix.pixel_brightness(x, y)` to query pixel brightness `[0, 1]` when building a custom traversal order. The call is cheap (direct C++ lookup); sort or filter however you like before sonification starts.
+
+```lua
+-- Brightest-first traversal
+sonopix.open_file("/path/to/image.png")
+
+local order = {}
+for y = 0, h - 1 do
+    for x = 0, w - 1 do
+        order[#order + 1] = { x, y, sonopix.pixel_brightness(x, y) }
+    end
+end
+table.sort(order, function(a, b) return a[3] > b[3] end)
+
+sonopix.opts.traversal_func = function(i, total, w, h)
+    local p = order[i + 1]
+    return p[1], p[2]
 end
 ```

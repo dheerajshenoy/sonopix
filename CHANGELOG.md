@@ -36,6 +36,9 @@
 - `sonopix.opts = { ... }` table assignment now works for all opts including nested `cursor` and `frequency`
 
 - **Image rotation** — `sonopix.opts.image_rotation` sets the display angle in degrees (default `0`); image pivots around its center; scale is computed from the axis-aligned bounding box of the rotated image so edges never clip; cursor tracks pixel positions on the rotated image using the sprite transform
+- **`sonopix.opts.sonify_func` is now per-strip** — called once per strip (not per sample); receives `ctx` with `n_samples`; must return a table of `n_samples` floats; 100–1000× fewer Lua/C++ boundary crossings; `strip_t` removed (compute as `(i-1)/ctx.n_samples` if needed)
+- **`sonopix.pixel_brightness(x, y)`** — returns brightness `[0, 1]` of the pixel at `(x, y)` in the loaded image; intended for use in `traversal_func` setup to build data-driven orderings (e.g. brightest-first sort)
+- **`sonopix.opts.audio_effects.process_func`** — custom DSP function called once after all built-in effects; receives `(samples, sample_rate)` and returns a modified samples table; runs in the sonify thread
 - **`sonopix.opts.audio_effects`** sub-table — post-sonification audio DSP: `gain` (master multiplier), `delay` (`{time, feedback, mix}`), `reverb` (`{room_size, damping, mix}` — 4-comb Schroeder), `distortion` (`{drive, mix}` — tanh soft clip); effects are applied in the sonify thread in distortion → reverb → delay order; `mix = 0` skips each effect; implemented in `src/Effects.cpp`
 - **`sonopix.opts.image_effects`** sub-table — real-time GPU image effects via GLSL fragment shader: `grayscale`, `brightness`, `saturation`, `contrast`, `hue`, `blur` (Gaussian), `sharpen` (Laplacian), `threshold` (luminance cutoff), `invert`; supports both inline (`sonopix.opts.image_effects.blur = 2`) and table form; gracefully disabled if shaders are unavailable; shader source lives in `src/shaders/image_effects.cpp`
 

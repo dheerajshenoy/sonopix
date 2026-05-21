@@ -420,6 +420,9 @@ MainWindow::sonify()
                                         ae.delay_feedback,
                                         ae.delay_mix);
 
+        if (ae.has_process_func)
+            this->apply_audio_process_func(audio_data, sr);
+
         m_audio_engine->set_data(std::move(audio_data), sr);
     });
 
@@ -485,6 +488,55 @@ MainWindow::collect_traversal_pixels() noexcept
 
     lua_pop(m_L, 1); // pop function
     m_using_custom_traversal = !m_traversal_pixels.empty();
+}
+
+void
+MainWindow::apply_audio_process_func(std::vector<float> &audio_data,
+                                     float sample_rate) noexcept
+{
+    if (!m_L)
+        return;
+
+    lua_getfield(m_L, LUA_REGISTRYINDEX, "sonopix_audio_process_func");
+    if (!lua_isfunction(m_L, -1))
+    {
+        lua_pop(m_L, 1);
+        return;
+    }
+
+    // Build Lua table from audio_data
+    lua_createtable(m_L, static_cast<int>(audio_data.size()), 0);
+    for (std::size_t i = 0; i < audio_data.size(); ++i)
+    {
+        lua_pushnumber(m_L, audio_data[i]);
+        lua_rawseti(m_L, -2, static_cast<int>(i + 1));
+    }
+
+    // Push sample_rate as second argument
+    lua_pushnumber(m_L, sample_rate);
+
+    if (lua_pcall(m_L, 2, 1, 0) != LUA_OK)
+    {
+        fprintf(stderr, "audio_effects.process_func error: %s\n",
+                lua_tostring(m_L, -1));
+        lua_pop(m_L, 1);
+        return;
+    }
+
+    if (lua_istable(m_L, -1))
+    {
+        const int n = static_cast<int>(audio_data.size());
+        audio_data.resize(static_cast<std::size_t>(n));
+        for (int i = 0; i < n; ++i)
+        {
+            lua_rawgeti(m_L, -1, i + 1);
+            audio_data[static_cast<std::size_t>(i)]
+                = static_cast<float>(lua_tonumber(m_L, -1));
+            lua_pop(m_L, 1);
+        }
+    }
+
+    lua_pop(m_L, 1); // pop result
 }
 
 bool

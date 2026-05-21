@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <stdexcept>
 #include <vector>
@@ -33,7 +35,7 @@ struct SonifyContext
 
     // Timing info for the generated audio
     float t;       // time in seconds since start of audio
-    float strip_t; // normalized position within the current strip [0, 1)
+    int   n_samples; // number of samples to generate for this strip
 
     // Frequency mapping parameters
     sonify::FreqScale freq_scale;
@@ -41,7 +43,7 @@ struct SonifyContext
     float fmax;
 };
 
-using SonifyFunc = std::function<float(const SonifyContext &)>;
+using SonifyFunc = std::function<void(const SonifyContext &, std::vector<float> &)>;
 
 /* Helper function to normalize uint8_t data to float within range [0 .. 1] */
 inline std::vector<float>
@@ -97,7 +99,7 @@ sine()
 {
     float phase = 0.0f;
 
-    return [phase](const SonifyContext &ctx) mutable -> float
+    return [phase](const SonifyContext &ctx, std::vector<float> &out) mutable
     {
         const float b = std::clamp(ctx.brightness, 0.0f, 1.0f);
 
@@ -116,11 +118,13 @@ sine()
         }
 
         constexpr float two_pi = 6.28318530718f;
-        phase += two_pi * freq / ctx.sample_rate;
-        if (phase >= two_pi)
-            phase -= two_pi;
-
-        return b * std::sin(phase);
+        for (int i = 0; i < ctx.n_samples; ++i)
+        {
+            phase += two_pi * freq / ctx.sample_rate;
+            if (phase >= two_pi)
+                phase -= two_pi;
+            out.push_back(b * std::sin(phase));
+        }
     };
 }
 
@@ -186,6 +190,17 @@ public:
 
     inline void set_sonify_func(const SonifyFunc &func) noexcept { m_sonify_func = func; }
     const SonifyFunc &sonify_func() const noexcept               { return m_sonify_func; }
+
+    float pixel_brightness_at(int x, int y) const noexcept
+    {
+        if (m_img.data.empty()
+            || x < 0 || x >= m_img.width
+            || y < 0 || y >= m_img.height)
+            return 0.0f;
+        return pixel_brightness(
+            &m_img.data[y * m_img.stride + x * m_img.channels],
+            m_img.channels);
+    }
 
     void validate() const
     {
@@ -257,26 +272,22 @@ private:
     void emit_strip(float brightness, int x, int y, int w, int h, int spu,
                     int strip_index, int strip_count)
     {
-        const float inv_spu = 1.0f / static_cast<float>(spu);
-        for (int s = 0; s < spu; ++s)
-        {
-            SonifyContext ctx{
-                .sample_rate = m_sample_rate,
-                .brightness  = brightness,
-                .x           = x,
-                .y           = y,
-                .width       = w,
-                .height      = h,
-                .strip_index = strip_index,
-                .strip_count = strip_count,
-                .t           = static_cast<float>(m_audio_data.size()) / m_sample_rate,
-                .strip_t     = static_cast<float>(s) * inv_spu,
-                .freq_scale  = m_freq_map.scale,
-                .fmin        = m_freq_map.min,
-                .fmax        = m_freq_map.max,
-            };
-            m_audio_data.push_back(m_sonify_func(ctx));
-        }
+        SonifyContext ctx{
+            .sample_rate = m_sample_rate,
+            .brightness  = brightness,
+            .x           = x,
+            .y           = y,
+            .width       = w,
+            .height      = h,
+            .strip_index = strip_index,
+            .strip_count = strip_count,
+            .t           = static_cast<float>(m_audio_data.size()) / m_sample_rate,
+            .n_samples   = spu,
+            .freq_scale  = m_freq_map.scale,
+            .fmin        = m_freq_map.min,
+            .fmax        = m_freq_map.max,
+        };
+        m_sonify_func(ctx, m_audio_data);
     }
 
     void sonify_left_to_right()

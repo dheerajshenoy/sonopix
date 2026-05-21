@@ -237,6 +237,18 @@ MainWindow::init_lua_sonopix() noexcept
     }, 1);
     lua_setfield(m_L, -2, "audio_data");
 
+    // sonopix.pixel_brightness(x, y) -> number
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        const int x = static_cast<int>(luaL_checkinteger(L, 1));
+        const int y = static_cast<int>(luaL_checkinteger(L, 2));
+        lua_pushnumber(L, w->sonifier()->pixel_brightness_at(x, y));
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "pixel_brightness");
+
     // Set the sonopix table in the global namespace
     lua_setglobal(m_L, "sonopix");
 }
@@ -388,14 +400,13 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         lua_pushvalue(L, 3);
         lua_setfield(L, LUA_REGISTRYINDEX, "sonopix_sonify_func");
 
-        // Persistent context table — reused every call to avoid per-sample
-        // alloc
+        // Persistent context table — reused every call to avoid per-strip alloc
         lua_newtable(L);
         lua_setfield(L, LUA_REGISTRYINDEX, "sonopix_ctx_table");
 
         lua_State *Lc = L;
         window->sonifier()->set_sonify_func(
-            [Lc](const sonify::SonifyContext &ctx) -> float
+            [Lc](const sonify::SonifyContext &ctx, std::vector<float> &out)
         {
             lua_getfield(Lc, LUA_REGISTRYINDEX, "sonopix_sonify_func");
             lua_getfield(Lc, LUA_REGISTRYINDEX, "sonopix_ctx_table");
@@ -414,12 +425,12 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
             lua_setfield(Lc, -2, "height");
             lua_pushnumber(Lc, ctx.t);
             lua_setfield(Lc, -2, "t");
-            lua_pushnumber(Lc, ctx.strip_t);
-            lua_setfield(Lc, -2, "strip_t");
             lua_pushinteger(Lc, ctx.strip_index);
             lua_setfield(Lc, -2, "strip_index");
             lua_pushinteger(Lc, ctx.strip_count);
             lua_setfield(Lc, -2, "strip_count");
+            lua_pushinteger(Lc, ctx.n_samples);
+            lua_setfield(Lc, -2, "n_samples");
             lua_pushnumber(Lc, ctx.fmin);
             lua_setfield(Lc, -2, "fmin");
             lua_pushnumber(Lc, ctx.fmax);
@@ -438,12 +449,26 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
                 fprintf(stderr, "sonify_func error: %s\n",
                         lua_tostring(Lc, -1));
                 lua_pop(Lc, 1);
-                return 0.0f;
+                for (int i = 0; i < ctx.n_samples; ++i)
+                    out.push_back(0.0f);
+                return;
             }
 
-            const float result = static_cast<float>(lua_tonumber(Lc, -1));
-            lua_pop(Lc, 1);
-            return result;
+            if (!lua_istable(Lc, -1))
+            {
+                lua_pop(Lc, 1);
+                for (int i = 0; i < ctx.n_samples; ++i)
+                    out.push_back(0.0f);
+                return;
+            }
+
+            for (int i = 1; i <= ctx.n_samples; ++i)
+            {
+                lua_rawgeti(Lc, -1, i);
+                out.push_back(static_cast<float>(lua_tonumber(Lc, -1)));
+                lua_pop(Lc, 1);
+            }
+            lua_pop(Lc, 1); // pop result table
         });
         return 0;
     }
@@ -1068,6 +1093,12 @@ MainWindow::init_lua_sonopix_opts() noexcept
             lua_pushnumber(L, ae.distortion_mix);   lua_setfield(L, -2, "mix");
             return 1;
         }
+        // process_func
+        if (strcmp(key, "process_func") == 0)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_audio_process_func");
+            return 1;
+        }
 
         lua_pushvalue(L, 2); lua_rawget(L, 1);
         return 1;
@@ -1124,6 +1155,22 @@ MainWindow::init_lua_sonopix_opts() noexcept
             lua_getfield(L, 3, "mix");
             if (lua_isnumber(L, -1)) ae.distortion_mix = static_cast<float>(lua_tonumber(L, -1));
             lua_pop(L, 1);
+            return 0;
+        }
+        if (strcmp(key, "process_func") == 0)
+        {
+            if (lua_isfunction(L, 3))
+            {
+                lua_pushvalue(L, 3);
+                lua_setfield(L, LUA_REGISTRYINDEX, "sonopix_audio_process_func");
+                w->m_config.audio_effects.has_process_func = true;
+            }
+            else
+            {
+                lua_pushnil(L);
+                lua_setfield(L, LUA_REGISTRYINDEX, "sonopix_audio_process_func");
+                w->m_config.audio_effects.has_process_func = false;
+            }
             return 0;
         }
         lua_pushvalue(L, 2); lua_pushvalue(L, 3); lua_rawset(L, 1);

@@ -156,6 +156,7 @@ private:
     void init_lua_sonopix() noexcept;
     void init_lua_sonopix_opts() noexcept;
     void collect_traversal_pixels() noexcept;
+    void apply_audio_process_func(std::vector<float> &audio_data, float sample_rate) noexcept;
 
     /* Events */
     void handle_events() noexcept;

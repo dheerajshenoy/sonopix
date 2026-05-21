@@ -11,7 +11,7 @@ sonopix = sonopix or {}
 ---@field strip_index integer Playback-order index of this strip (0 = first strip played, direction-independent)
 ---@field strip_count integer Total number of strips
 ---@field t number Time in seconds since the start of audio
----@field strip_t number Normalized position within the current strip [0, 1)
+---@field n_samples integer Number of samples to generate for this strip
 ---@field fmin number Minimum frequency in Hz
 ---@field fmax number Maximum frequency in Hz
 ---@field scale "linear"|"log"|"exponential" Frequency mapping scale
@@ -57,6 +57,7 @@ sonopix = sonopix or {}
 ---@field delay? { time: number, feedback: number, mix: number } Simple delay effect with time in seconds, feedback amount [0, 1], and wet/dry mix [0, 1]
 ---@field reverb? { room_size: number, damping: number, mix: number } Simple reverb effect with room size [0, 1], damping [0, 1], and wet/dry mix [0, 1]
 ---@field distortion? { drive: number, mix: number } Simple distortion effect with drive amount [0, 1] and wet/dry mix [0, 1]
+---@field process_func? fun(samples: number[], sample_rate: number): number[] Custom post-processing function; receives all audio samples and sample rate, returns modified samples
 
 ---@class SonopixOpts
 ---@field direction? "left-to-right"|"right-to-left"|"top-to-bottom"|"bottom-to-top"|"circle-outwards"|"circle-inwards"|"rotate-cw"|"rotate-ccw" Scan direction
@@ -77,7 +78,7 @@ sonopix = sonopix or {}
 ---@field window_title? string Window title string
 ---@field window_size? { width: integer, height: integer } Window dimensions in pixels
 ---@field traversal_func? fun(strip_index: integer, total: integer, width: integer, height: integer): integer, integer Custom pixel traversal; called once per strip with (strip_index, total, width, height); return (x, y) for that strip
----@field sonify_func? fun(ctx: SonifyContext): number Custom sonification function; receives context per sample and returns a float in [-1, 1]
+---@field sonify_func? fun(ctx: SonifyContext): number[] Custom sonification function; receives context per strip and returns an array of n_samples floats in [-1, 1]
 
 ---@type SonopixOpts
 sonopix.opts = {}

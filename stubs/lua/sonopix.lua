@@ -54,3 +54,9 @@ sonopix.audio_dataf = function() end
 ---@return boolean success True if the file was written successfully
 sonopix.save_audio = function(filepath) end
 
+---Returns the brightness [0,1] of the pixel at (x, y) in the currently loaded image
+---@param x integer
+---@param y integer
+---@return number brightness
+sonopix.pixel_brightness = function(x, y) end
+

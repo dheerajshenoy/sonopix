@@ -1,70 +1,75 @@
 local s = sonopix
 
--- Zigzag (serpentine) — alternates horizontal direction each row
--- traversal_func signature: function(strip_index, total, w, h) -> x, y
--- local zigzag_traversal_func = function(i, total, w, h)
---     local row     = math.floor(i / w)
---     local col_raw = i % w
---     if row % 2 == 0 then
---         return col_raw, row
---     else
---         return w - 1 - col_raw, row
---     end
--- end
---
--- -- Random pixel order (with replacement)
--- local random_traversal_func = function(i, total, w, h)
---     return math.random(0, w - 1), math.random(0, h - 1)
--- end
+local random_file_from_dir = function(dir)
+    local p = io.popen('find "' .. dir .. '" -maxdepth 1 -type f')
+    if not p then return nil end
+    local files = {}
+    for file in p:lines() do
+        files[#files + 1] = file
+    end
+    p:close()
+    if #files == 0 then return nil end
+    return files[math.random(1, #files)]
+end
 
-local phase = 0.0
-local sonify_func = function(ctx)
-    local freq = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
-    phase = phase + 2 * math.pi * freq / ctx.sample_rate
-    return ctx.brightness * math.sin(phase)
+-- Zigzag (serpentine): scans left→right on even rows, right→left on odd rows.
+-- Each call returns the (x, y) coordinate of the i-th pixel in that order.
+-- Anti-diagonal stripes: sweeps top-right → bottom-left diagonals,
+-- starting from the top-left corner. Precomputes the order once per image size.
+local diag_w, diag_h = 0, 0
+local diag_x, diag_y = {}, {}
+
+local function diagonal(i, _, w, h)
+    if w ~= diag_w or h ~= diag_h then
+        diag_w, diag_h = w, h
+        diag_x, diag_y = {}, {}
+        local idx = 1
+        for d = 0, w + h - 2 do
+            for x = math.max(0, d - (h - 1)), math.min(d, w - 1) do
+                diag_x[idx] = x
+                diag_y[idx] = d - x
+                idx = idx + 1
+            end
+        end
+    end
+    return diag_x[i + 1], diag_y[i + 1]
+end
+
+-- Additive synthesis: four harmonics with a falling amplitude series
+-- (1, 1/2, 1/3, 1/4) — warm, organ-like tone that tracks image brightness.
+local phases = { 0.0, 0.0, 0.0, 0.0 }
+local function sonify(ctx)
+    local f = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
+    local samples = {}
+    for i = 1, ctx.n_samples do
+        local sum = 0.0
+        for k = 1, #phases do
+            phases[k] = phases[k] + 2 * math.pi * f * k / ctx.sample_rate
+            sum = sum + math.sin(phases[k]) / k
+        end
+        samples[i] = ctx.brightness * sum * 0.48  -- ~1/sum(1/k,k=1..4)
+    end
+    return samples
 end
 
 s.opts = {
-    image_rotation = 0,
-    image_effects = {
-        blur = 40,
-        invert = true,
-    },
-    show_progress_bar = true,
-    direction = "circle-outwards",
-    frequency = {
-        min   = 20,
-        max   = 20000,
-        scale = "log",
-    },
-    cursor = {
-        width = 5,
-        color = "#FF5000FF",
-    },
-    sonify_func     = sonify_func,
-    -- traversal_func  = zigzag_traversal_func,
-    spu             = 1e-3,
+    -- traversal_func overrides direction; keep direction commented out.
+    traversal_func = diagonal,
+    sonify_func    = sonify,
+    -- 5e-6 s/pixel ≈ 1 sample/pixel at 44100 Hz — keeps audio duration sane.
+    spu       = 5e-6,
+    frequency = { min = 20, max = 20000, scale = "log" },
+    cursor    = { width = 3, color = "#FF5000FF" },
+    waveform        = { height = 50, color = "#FFFFFFC8" },
+    oscilloscope    = { height = 60, window_samples = 2048, color = "#00FFB4DC" },
+    progress_bar    = { height = 6, color = "#FF8800FF" },
+    antialiasing_level = 8,
 }
-
-local random_file_from_dir = function(dir)
-    local p = io.popen('find "' .. dir .. '" -type f')
-    if not p then return nil end
-
-    local files = {}
-    for file in p:lines() do
-        table.insert(files, file)
-    end
-    if #files == 0 then
-        return nil
-    end
-    return files[math.random(1, #files)]
-end
 
 local random_file = random_file_from_dir("/home/dheeraj/Gits/wallpapers/")
 
 if random_file then
-    local opened = s.open_file(random_file)
-    if opened then
+    if s.open_file(random_file) then
         if s.sonify() then
             s.play()
         end
