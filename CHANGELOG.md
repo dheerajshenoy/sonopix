@@ -43,6 +43,7 @@
 - **`sonopix.opts.oscilloscope`** sub-table — `visible`, `height`, `window_samples`, `color`; supports both inline and table-form assignment
 - **`sonopix.opts.progress_bar`** sub-table — `visible`, `height`, `color`; replaces the old boolean-only `show_progress_bar` flag (which is kept for backwards compatibility)
 - **Image layout** — image is now flush against the top of the window; bottom area reserved for waveform + oscilloscope + progress bar; image scales to fill full window width
+- **Loop playback** — `sonopix.opts.loop = true` or press `L` to toggle; delegates to `sf::Sound::setLooping`
 - **Waveform seek** — clicking or dragging on the waveform strip seeks the audio; drag is clamped to `[0, 1]` so scrubbing past either edge is safe; works in playing and paused states
 - **`"rotate-cw"` and `"rotate-ccw"` directions** — radar-sweep traversal; a radial line rotates from 12 o'clock (clockwise or counter-clockwise); brightness per strip is the average along that ray; cursor is a clock-hand rectangle pivoted at the image centre
 - ~~`"zigzag-h"` / `"zigzag-v"`~~ — removed
@@ -55,6 +56,11 @@
 - **`sonopix.is_paused()` / `sonopix.is_stopped()`** Lua bindings added to match the existing `is_playing()`
 
 ### Bug Fixes (post-0.1)
+
+- Fix crash (`std::length_error` in `vector::resize`) when a Lua script calls `open_file` before the window is created — `open_file` now falls back to `m_window_size` instead of `m_window.getSize()` when the window is not yet open
+- Fix negative scale in `rescale_recenter_image` when reserved bottom strip height exceeds window height — `available_h` and `scale` are now clamped to `≥ 0`
+- Fix `zigzag-h` / `zigzag-v` still listed in `--direction` CLI choices after removal
+- Fix keyboard scrubbing (`←` / `→`) using fixed seconds — now seeks by 2 % / 10 % of total duration so the step is appropriate regardless of audio length
 
 - Fix `sonify()` copying audio buffer — now uses `take_audio()` to move instead
 - Fix `set_cursor_width` not updating the live cursor shape

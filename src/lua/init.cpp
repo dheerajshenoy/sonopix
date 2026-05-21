@@ -354,6 +354,14 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         return 0;
     }
 
+    // sonopix.opts.loop
+    if (strcmp(key, "loop") == 0)
+    {
+        luaL_checktype(L, 3, LUA_TBOOLEAN);
+        window->set_loop(lua_toboolean(L, 3) != 0);
+        return 0;
+    }
+
     // sonopix.opts.traversal_func
     if (strcmp(key, "traversal_func") == 0)
     {
@@ -1124,6 +1132,13 @@ MainWindow::init_lua_sonopix_opts() noexcept
         if (strcmp(key, "show_progress_bar") == 0)
         {
             lua_pushboolean(L, window->show_progress_bar() ? 1 : 0);
+            return 1;
+        }
+
+        // sonopix.opts.loop
+        if (strcmp(key, "loop") == 0)
+        {
+            lua_pushboolean(L, window->loop() ? 1 : 0);
             return 1;
         }
 

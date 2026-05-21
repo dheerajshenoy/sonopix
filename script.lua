@@ -26,7 +26,7 @@ end
 
 s.opts = {
     show_progress_bar = true,
-    direction = "rotate-cw",
+    direction = "left-to-right",
     frequency = {
         min   = 20,
         max   = 20000,

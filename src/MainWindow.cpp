@@ -343,6 +343,9 @@ MainWindow::handle_keypress_event(const sf::Event::KeyPressed *e) noexcept
         case sf::Keyboard::Key::S:
             sonify();
             break;
+        case sf::Keyboard::Key::L:
+            set_loop(!m_config.loop);
+            break;
         case sf::Keyboard::Key::Left:
             seek_relative(e->shift ? -0.10f : -0.02f);
             break;

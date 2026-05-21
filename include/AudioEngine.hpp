@@ -62,6 +62,9 @@ public:
     void stop() noexcept;
     void pause() noexcept;
     void seek_to_sample(std::size_t sample) noexcept;
+
+    inline void set_looping(bool loop) noexcept { m_sound.setLooping(loop); }
+    inline bool is_looping() const noexcept     { return m_sound.isLooping(); }
     const std::size_t sample_index() const noexcept;
     void set_data(std::vector<float> &&audio_data, float sample_rate);
     bool save(const std::string &filename) const noexcept;

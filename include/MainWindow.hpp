@@ -69,6 +69,14 @@ public:
         return m_config.progress_bar.visible;
     }
 
+    inline void set_loop(bool loop) noexcept
+    {
+        m_config.loop = loop;
+        m_audio_engine->set_looping(loop);
+    }
+
+    inline bool loop() const noexcept { return m_config.loop; }
+
     inline void set_antialiasing_level(unsigned int level) noexcept
     {
         m_config.window.antiAliasingLevel = level;

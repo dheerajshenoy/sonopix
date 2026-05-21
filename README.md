@@ -54,6 +54,9 @@ sonopix [options]
 |---|---|
 | `Space` | Play / pause |
 | `S` | Re-sonify with current settings |
+| `L` | Toggle loop |
+| `←` / `→` | Seek ±2 % |
+| `Shift+←` / `Shift+→` | Seek ±10 % |
 
 ### Batch export
 
@@ -108,6 +111,7 @@ end
 | `cursor.width` | number | Cursor width in pixels |
 | `cursor.color` | string | Cursor color as `"#RRGGBB"` or `"#RRGGBBAA"` |
 | `amplitude` | number | Master gain applied after sonification (default: `1.0`) |
+| `loop` | boolean | Loop playback when audio ends (default: `false`); also toggled with `L` |
 | `waveform.visible` | boolean | Show/hide the RMS waveform strip (default: `true`) |
 | `waveform.height` | integer | Height of the waveform strip in pixels (default: `40`) |
 | `waveform.color` | string | Waveform bar color as `"#RRGGBB"` or `"#RRGGBBAA"` |

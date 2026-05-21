@@ -41,5 +41,6 @@ struct Config
     float amplitude             = 1.0f;
     sonify::Direction direction = sonify::Direction::LEFT_TO_RIGHT;
     sf::ContextSettings window;
+    bool loop    = false;
     bool verbose = false;
 };
