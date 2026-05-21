@@ -180,7 +180,7 @@ MainWindow::open_file(const std::string &filename)
     m_tex = sf::Texture(img);
     m_sprite.setTexture(m_tex, true);
 
-    m_win_size  = m_window.getSize();
+    m_win_size  = m_window.isOpen() ? m_window.getSize() : m_window_size;
     m_tex_size  = img.getSize();
     const int w = (int)m_tex_size.x;
     const int h = (int)m_tex_size.y;
@@ -276,6 +276,23 @@ MainWindow::seek_waveform(float mx) noexcept
 }
 
 void
+MainWindow::seek_relative(float fraction) noexcept
+{
+    const std::size_t total = m_audio_engine->dataf().size();
+    if (total == 0)
+        return;
+
+    const auto delta  = static_cast<std::ptrdiff_t>(fraction * static_cast<float>(total));
+    const auto target = static_cast<std::size_t>(
+        std::clamp(static_cast<std::ptrdiff_t>(m_last_sample_index) + delta,
+                   std::ptrdiff_t{0},
+                   static_cast<std::ptrdiff_t>(total - 1)));
+
+    m_audio_engine->seek_to_sample(target);
+    m_last_sample_index = target;
+}
+
+void
 MainWindow::handle_mouse_press_event(
     const sf::Event::MouseButtonPressed *e) noexcept
 {
@@ -325,6 +342,12 @@ MainWindow::handle_keypress_event(const sf::Event::KeyPressed *e) noexcept
             break;
         case sf::Keyboard::Key::S:
             sonify();
+            break;
+        case sf::Keyboard::Key::Left:
+            seek_relative(e->shift ? -0.10f : -0.02f);
+            break;
+        case sf::Keyboard::Key::Right:
+            seek_relative(e->shift ? 0.10f : 0.02f);
             break;
         default:
             break;
@@ -452,10 +475,11 @@ MainWindow::rescale_recenter_image() noexcept
           + (m_config.progress_bar.visible
                  ? static_cast<float>(m_config.progress_bar.height)
                  : 0.f);
+    const float available_h
+        = std::max(0.f, static_cast<float>(m_win_size.y) - reserved_bottom);
     const float scaleX = static_cast<float>(m_win_size.x) / m_tex_size.x;
-    const float scaleY
-        = static_cast<float>(m_win_size.y - reserved_bottom) / m_tex_size.y;
-    const float scale = std::min(scaleX, scaleY);
+    const float scaleY = available_h / static_cast<float>(m_tex_size.y);
+    const float scale  = std::max(0.f, std::min(scaleX, scaleY));
 
     m_sprite.setScale({scale, scale});
     m_sprite.setPosition({(m_win_size.x - m_tex_size.x * scale) * 0.5f, 0.f});

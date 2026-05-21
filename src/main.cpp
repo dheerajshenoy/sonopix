@@ -103,12 +103,12 @@ init_args(argparse::ArgumentParser &parser)
     parser.add_argument("-d", "--direction")
         .help("Direction to traverse the image (left-to-right, right-to-left, "
               "top-to-bottom, bottom-to-top, circle-outwards, circle-inwards, "
-              "zigzag-h, zigzag-v).")
+              "rotate-cw, rotate-ccw).")
         .default_value(std::string("left-to-right"))
         .nargs(1)
         .choices("left-to-right", "right-to-left", "top-to-bottom",
                  "bottom-to-top", "circle-outwards", "circle-inwards",
-                 "zigzag-h", "zigzag-v")
+                 "rotate-cw", "rotate-ccw")
         .metavar("DIRECTION");
 }
 

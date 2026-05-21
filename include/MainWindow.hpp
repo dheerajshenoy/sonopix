@@ -140,6 +140,7 @@ private:
     void handle_mouse_release_event(const sf::Event::MouseButtonReleased *e) noexcept;
     void handle_mouse_move_event(const sf::Event::MouseMoved *e) noexcept;
     void seek_waveform(float mx) noexcept;
+    void seek_relative(float seconds) noexcept;
 
     float rescale_recenter_image() noexcept;
     void render() noexcept;
