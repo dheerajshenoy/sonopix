@@ -53,6 +53,7 @@ sonopix = sonopix or {}
 ---@field channel_count? integer Number of audio channels (must be > 0)
 ---@field amplitude? number Master gain applied to the audio buffer after sonification (default: 1.0, must be >= 0)
 ---@field loop? boolean Loop playback when the audio reaches the end (default: false)
+---@field image_rotation? number Rotation of the displayed image in degrees (default: 0); cursor tracks the rotated image
 ---@field antialiasing_level? integer MSAA sample count (0 = off, 2/4/8 typical); applied at window creation
 ---@field window_title? string Window title string
 ---@field window_size? { width: integer, height: integer } Window dimensions in pixels

@@ -77,6 +77,17 @@ public:
 
     inline bool loop() const noexcept { return m_config.loop; }
 
+    inline void set_image_rotation(float degrees) noexcept
+    {
+        m_config.image_rotation = degrees;
+        m_sprite.setRotation(sf::degrees(degrees));
+    }
+
+    inline float image_rotation() const noexcept
+    {
+        return m_config.image_rotation;
+    }
+
     inline void set_antialiasing_level(unsigned int level) noexcept
     {
         m_config.window.antiAliasingLevel = level;

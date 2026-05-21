@@ -480,12 +480,24 @@ MainWindow::rescale_recenter_image() noexcept
                  : 0.f);
     const float available_h
         = std::max(0.f, static_cast<float>(m_win_size.y) - reserved_bottom);
-    const float scaleX = static_cast<float>(m_win_size.x) / m_tex_size.x;
-    const float scaleY = available_h / static_cast<float>(m_tex_size.y);
+    // Compute the axis-aligned bounding box of the rotated texture so the
+    // entire image remains visible regardless of rotation angle.
+    const float rad    = m_config.image_rotation * (3.14159265f / 180.f);
+    const float cosA   = std::abs(std::cos(rad));
+    const float sinA   = std::abs(std::sin(rad));
+    const float bbox_w = m_tex_size.x * cosA + m_tex_size.y * sinA;
+    const float bbox_h = m_tex_size.x * sinA + m_tex_size.y * cosA;
+    const float scaleX = static_cast<float>(m_win_size.x) / bbox_w;
+    const float scaleY = available_h / bbox_h;
     const float scale  = std::max(0.f, std::min(scaleX, scaleY));
 
     m_sprite.setScale({scale, scale});
-    m_sprite.setPosition({(m_win_size.x - m_tex_size.x * scale) * 0.5f, 0.f});
+    m_sprite.setOrigin({m_tex_size.x * 0.5f, m_tex_size.y * 0.5f});
+    m_sprite.setRotation(sf::degrees(m_config.image_rotation));
+    // Center the sprite in the available area; origin is at texture center
+    const float cx = m_win_size.x * 0.5f;
+    const float cy = available_h * 0.5f;
+    m_sprite.setPosition({cx, cy});
     return scale;
 };
 
@@ -493,8 +505,9 @@ void
 MainWindow::init_waveform() noexcept
 {
     const float wave_height  = static_cast<float>(m_config.waveform.height);
-    const float wave_width   = m_tex_size.x * m_sprite.getScale().x;
-    const float wave_x       = m_sprite.getPosition().x;
+    const float scale        = m_sprite.getScale().x;
+    const float wave_width   = m_tex_size.x * scale;
+    const float wave_x       = m_sprite.getPosition().x - wave_width * 0.5f;
     const float osc_height
         = m_config.oscilloscope.visible
               ? static_cast<float>(m_config.oscilloscope.height)
@@ -533,8 +546,9 @@ MainWindow::build_waveform() noexcept
         return;
 
     const float wave_height  = static_cast<float>(m_config.waveform.height);
-    const float wave_width   = m_tex_size.x * m_sprite.getScale().x;
-    const float wave_x       = m_sprite.getPosition().x;
+    const float scale        = m_sprite.getScale().x;
+    const float wave_width   = m_tex_size.x * scale;
+    const float wave_x       = m_sprite.getPosition().x - wave_width * 0.5f;
     const float osc_height
         = m_config.oscilloscope.visible
               ? static_cast<float>(m_config.oscilloscope.height)
@@ -590,7 +604,7 @@ MainWindow::update_waveform() noexcept
         return;
 
     const float wave_width = m_tex_size.x * m_sprite.getScale().x;
-    const float wave_x    = m_sprite.getPosition().x;
+    const float wave_x    = m_sprite.getPosition().x - wave_width * 0.5f;
     const float progress
         = static_cast<float>(m_last_sample_index) / static_cast<float>(total);
     const float x                        = wave_x + progress * wave_width;
@@ -699,15 +713,17 @@ MainWindow::update_playback_bar() noexcept
 void
 MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
 {
-    if (position == sf::Vector2<float>{})
-        position = m_sprite.getPosition();
+    // Sprite origin is at texture center; use the transform to map texture-space
+    // points to screen space so cursor positions are correct even when the image
+    // is rotated.
+    (void)position; // unused — kept in signature for call-site compatibility
 
     if (m_using_custom_traversal)
     {
         auto rect = std::make_unique<sf::RectangleShape>();
         rect->setFillColor(m_config.cursor.color);
         rect->setSize({m_config.cursor.width, m_config.cursor.width});
-        rect->setPosition(position);
+        rect->setPosition(m_sprite.getTransform().transformPoint({0.f, 0.f}));
         m_cursor = std::move(rect);
         return;
     }
@@ -720,7 +736,8 @@ MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
             auto rect = std::make_unique<sf::RectangleShape>();
             rect->setFillColor(m_config.cursor.color);
             rect->setSize({m_config.cursor.width, m_tex_size.y * scale});
-            rect->setPosition(position);
+            rect->setPosition(m_sprite.getTransform().transformPoint({0.f, 0.f}));
+            rect->setRotation(sf::degrees(m_config.image_rotation));
             m_cursor = std::move(rect);
         }
         break;
@@ -731,7 +748,8 @@ MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
             auto rect = std::make_unique<sf::RectangleShape>();
             rect->setFillColor(m_config.cursor.color);
             rect->setSize({m_tex_size.x * scale, m_config.cursor.width});
-            rect->setPosition(position);
+            rect->setPosition(m_sprite.getTransform().transformPoint({0.f, 0.f}));
+            rect->setRotation(sf::degrees(m_config.image_rotation));
             m_cursor = std::move(rect);
         }
         break;
@@ -744,8 +762,8 @@ MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
             circle->setOutlineColor(m_config.cursor.color);
             circle->setOutlineThickness(m_config.cursor.width);
             circle->setRadius(0.f);
-            circle->setPosition({position.x + (m_tex_size.x * scale) * 0.5f,
-                                 position.y + (m_tex_size.y * scale) * 0.5f});
+            // Sprite position IS the image center (origin is at texture center)
+            circle->setPosition(m_sprite.getPosition());
             m_cursor = std::move(circle);
         }
         break;
@@ -756,15 +774,12 @@ MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
             const float cx_img = m_tex_size.x * 0.5f;
             const float cy_img = m_tex_size.y * 0.5f;
             const float max_r  = std::sqrt(cx_img * cx_img + cy_img * cy_img) * scale;
-            const sf::Vector2f center = {
-                m_sprite.getPosition().x + cx_img * scale,
-                m_sprite.getPosition().y + cy_img * scale
-            };
             auto rect = std::make_unique<sf::RectangleShape>();
             rect->setFillColor(m_config.cursor.color);
             rect->setSize({m_config.cursor.width, max_r});
             rect->setOrigin({m_config.cursor.width * 0.5f, max_r}); // pivot at image center
-            rect->setPosition(center);
+            // Sprite position IS the image center
+            rect->setPosition(m_sprite.getPosition());
             m_cursor = std::move(rect);
         }
         break;
@@ -906,11 +921,10 @@ MainWindow::move_cursor() noexcept
         if (strip < 0 || strip >= static_cast<int>(m_traversal_pixels.size()))
             return;
         const auto [px, py] = m_traversal_pixels[strip];
-        const float scale   = m_sprite.getScale().x;
         auto *rect          = static_cast<sf::RectangleShape *>(m_cursor.get());
         rect->setSize({m_config.cursor.width, m_config.cursor.width});
-        rect->setPosition({m_sprite.getPosition().x + px * scale,
-                           m_sprite.getPosition().y + py * scale});
+        rect->setPosition(m_sprite.getTransform().transformPoint(
+            {static_cast<float>(px), static_cast<float>(py)}));
         return;
     }
 
@@ -919,38 +933,32 @@ MainWindow::move_cursor() noexcept
         case sonify::Direction::LEFT_TO_RIGHT:
         case sonify::Direction::RIGHT_TO_LEFT:
         {
-            const int w       = static_cast<int>(m_tex_size.x);
-            const float scale = m_sprite.getScale().x;
-            const float x
-                = m_config.direction == sonify::Direction::RIGHT_TO_LEFT
-                      ? m_sprite.getPosition().x
-                            + static_cast<float>(w - strip) * scale
-                      : m_sprite.getPosition().x
-                            + static_cast<float>(strip) * scale;
-
+            const int w         = static_cast<int>(m_tex_size.x);
+            const float scale   = m_sprite.getScale().x;
+            const float col     = m_config.direction == sonify::Direction::RIGHT_TO_LEFT
+                                      ? static_cast<float>(w - strip)
+                                      : static_cast<float>(strip);
             auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
             rect->setSize({m_config.cursor.width,
                            static_cast<float>(m_tex_size.y) * scale});
-            rect->setPosition({x, m_sprite.getPosition().y});
+            rect->setPosition(m_sprite.getTransform().transformPoint({col, 0.f}));
+            rect->setRotation(sf::degrees(m_config.image_rotation));
         }
         break;
 
         case sonify::Direction::TOP_TO_BOTTOM:
         case sonify::Direction::BOTTOM_TO_TOP:
         {
-            const int h       = static_cast<int>(m_tex_size.y);
-            const float scale = m_sprite.getScale().y;
-            const float y
-                = m_config.direction == sonify::Direction::BOTTOM_TO_TOP
-                      ? m_sprite.getPosition().y
-                            + static_cast<float>(h - strip) * scale
-                      : m_sprite.getPosition().y
-                            + static_cast<float>(strip) * scale;
-
+            const int h         = static_cast<int>(m_tex_size.y);
+            const float scale   = m_sprite.getScale().y;
+            const float row     = m_config.direction == sonify::Direction::BOTTOM_TO_TOP
+                                      ? static_cast<float>(h - strip)
+                                      : static_cast<float>(strip);
             auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
             rect->setSize({static_cast<float>(m_tex_size.x) * scale,
                            m_config.cursor.width});
-            rect->setPosition({m_sprite.getPosition().x, y});
+            rect->setPosition(m_sprite.getTransform().transformPoint({0.f, row}));
+            rect->setRotation(sf::degrees(m_config.image_rotation));
         }
         break;
 
@@ -972,9 +980,10 @@ MainWindow::move_cursor() noexcept
                       : std::min(strip, max_r);
 
             const float radius           = r * scale;
-            const sf::Vector2f spritePos = m_sprite.getPosition();
-            const float cx_disp          = spritePos.x + cx_img * scale;
-            const float cy_disp          = spritePos.y + cy_img * scale;
+            // Sprite position IS the image center (origin is at texture center)
+            const sf::Vector2f center    = m_sprite.getPosition();
+            const float cx_disp          = center.x;
+            const float cy_disp          = center.y;
 
             // Subtract half stroke width so the outline is centred on the
             // ring boundary rather than hanging fully outside it.
@@ -1011,8 +1020,8 @@ MainWindow::move_cursor() noexcept
             auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
             rect->setSize({m_config.cursor.width, max_r});
             rect->setOrigin({m_config.cursor.width * 0.5f, max_r});
-            rect->setPosition({m_sprite.getPosition().x + cx_img * scale,
-                               m_sprite.getPosition().y + cy_img * scale});
+            // Sprite position IS the image center
+            rect->setPosition(m_sprite.getPosition());
             rect->setRotation(sf::degrees(
                 m_config.direction == sonify::Direction::ROTATE_CW
                     ? angle_deg : -angle_deg));

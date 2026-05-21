@@ -35,6 +35,8 @@
     - Supports both inline (`sonopix.opts.cursor.width = 3`) and table form (`sonopix.opts.cursor = { width = 3, color = "#FF0000" }`)
 - `sonopix.opts = { ... }` table assignment now works for all opts including nested `cursor` and `frequency`
 
+- **Image rotation** — `sonopix.opts.image_rotation` sets the display angle in degrees (default `0`); image pivots around its center; scale is computed from the axis-aligned bounding box of the rotated image so edges never clip; cursor tracks pixel positions on the rotated image using the sprite transform
+
 ### Features (post-0.1)
 
 - **Waveform strip** — RMS peak waveform drawn just above the oscilloscope; spans the width of the image; built once after sonification completes; background, bar color, height, and visibility all configurable via `sonopix.opts.waveform`

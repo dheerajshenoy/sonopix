@@ -112,6 +112,7 @@ end
 | `cursor.color` | string | Cursor color as `"#RRGGBB"` or `"#RRGGBBAA"` |
 | `amplitude` | number | Master gain applied after sonification (default: `1.0`) |
 | `loop` | boolean | Loop playback when audio ends (default: `false`); also toggled with `L` |
+| `image_rotation` | number | Rotation of the displayed image in degrees (default: `0`); cursor tracks the rotated image |
 | `waveform.visible` | boolean | Show/hide the RMS waveform strip (default: `true`) |
 | `waveform.height` | integer | Height of the waveform strip in pixels (default: `40`) |
 | `waveform.color` | string | Waveform bar color as `"#RRGGBB"` or `"#RRGGBBAA"` |

@@ -362,6 +362,13 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         return 0;
     }
 
+    // sonopix.opts.image_rotation
+    if (strcmp(key, "image_rotation") == 0)
+    {
+        window->set_image_rotation(static_cast<float>(luaL_checknumber(L, 3)));
+        return 0;
+    }
+
     // sonopix.opts.traversal_func
     if (strcmp(key, "traversal_func") == 0)
     {
@@ -1139,6 +1146,13 @@ MainWindow::init_lua_sonopix_opts() noexcept
         if (strcmp(key, "loop") == 0)
         {
             lua_pushboolean(L, window->loop() ? 1 : 0);
+            return 1;
+        }
+
+        // sonopix.opts.image_rotation
+        if (strcmp(key, "image_rotation") == 0)
+        {
+            lua_pushnumber(L, static_cast<lua_Number>(window->image_rotation()));
             return 1;
         }
 
