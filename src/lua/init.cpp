@@ -46,6 +46,21 @@ MainWindow::init_lua_sonopix() noexcept
     }, 1);
     lua_setfield(m_L, -2, "open_file");
 
+    // sonopix.file_path -> string or nil
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        MainWindow *window
+            = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        std::string path = window->file_path();
+        if (path.empty())
+            lua_pushnil(L);
+        else
+            lua_pushstring(L, path.c_str());
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "file_path");
+
     // sonopix.sonify() -> boolean
     lua_pushlightuserdata(m_L, this);
     lua_pushcclosure(m_L, [](lua_State *L) -> int
@@ -89,7 +104,8 @@ MainWindow::init_lua_sonopix() noexcept
     lua_pushlightuserdata(m_L, this);
     lua_pushcclosure(m_L, [](lua_State *L) -> int
     {
-        static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)))->pause();
+        static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)))
+            ->pause();
         return 0;
     }, 1);
     lua_setfield(m_L, -2, "pause");
@@ -116,8 +132,8 @@ MainWindow::init_lua_sonopix() noexcept
     lua_pushlightuserdata(m_L, this);
     lua_pushcclosure(m_L, [](lua_State *L) -> int
     {
-        MainWindow *window = static_cast<MainWindow *>(
-            lua_touserdata(L, lua_upvalueindex(1)));
+        MainWindow *window
+            = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
         lua_pushboolean(L, window->m_audio_engine->is_playing() ? 1 : 0);
         return 1;
     }, 1);
@@ -127,8 +143,8 @@ MainWindow::init_lua_sonopix() noexcept
     lua_pushlightuserdata(m_L, this);
     lua_pushcclosure(m_L, [](lua_State *L) -> int
     {
-        MainWindow *window = static_cast<MainWindow *>(
-            lua_touserdata(L, lua_upvalueindex(1)));
+        MainWindow *window
+            = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
         lua_pushboolean(L, window->m_audio_engine->is_paused() ? 1 : 0);
         return 1;
     }, 1);
@@ -138,8 +154,8 @@ MainWindow::init_lua_sonopix() noexcept
     lua_pushlightuserdata(m_L, this);
     lua_pushcclosure(m_L, [](lua_State *L) -> int
     {
-        MainWindow *window = static_cast<MainWindow *>(
-            lua_touserdata(L, lua_upvalueindex(1)));
+        MainWindow *window
+            = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
         lua_pushboolean(L, window->m_audio_engine->is_stopped() ? 1 : 0);
         return 1;
     }, 1);
@@ -170,15 +186,79 @@ MainWindow::init_lua_sonopix() noexcept
     lua_pushcclosure(m_L, [](lua_State *L) -> int
     {
         const char *filepath = luaL_checkstring(L, 1);
-        MainWindow *window   = static_cast<MainWindow *>(
-            lua_touserdata(L, lua_upvalueindex(1)));
+        MainWindow *window
+            = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
         lua_pushboolean(L, window->save_audio(filepath) ? 1 : 0);
         return 1;
     }, 1);
     lua_setfield(m_L, -2, "save_audio");
 
+    // sonopix.audio_data() -> table or nil
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        MainWindow *window
+            = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        const auto &audio_data = window->m_audio_engine->data();
+        if (audio_data.empty())
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+        lua_newtable(L);
+        for (size_t i = 0; i < audio_data.size(); ++i)
+        {
+            lua_pushnumber(L, audio_data[i]);
+            lua_rawseti(L, -2, static_cast<int>(i + 1));
+        }
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "audio_data");
+
+    // sonopix.audio_dataf() -> table or nil
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        MainWindow *window
+            = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        const auto &audio_data = window->m_audio_engine->dataf();
+        if (audio_data.empty())
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+        lua_newtable(L);
+        for (size_t i = 0; i < audio_data.size(); ++i)
+        {
+            lua_pushnumber(L, audio_data[i]);
+            lua_rawseti(L, -2, static_cast<int>(i + 1));
+        }
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "audio_data");
+
     // Set the sonopix table in the global namespace
     lua_setglobal(m_L, "sonopix");
+}
+
+static std::string
+sf_color_to_hex(const sf::Color &c)
+{
+    char buf[10];
+    std::snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", c.r, c.g, c.b, c.a);
+    return std::string(buf);
+}
+
+static sf::Color
+hex_to_sf_color(lua_State *L, int idx)
+{
+    const char *s = luaL_checkstring(L, idx);
+    if (!s || s[0] != '#' || (strlen(s) != 7 && strlen(s) != 9))
+        luaL_error(L, "color must be '#RRGGBB' or '#RRGGBBAA'");
+    std::string hex(s + 1);
+    if (hex.length() == 6)
+        hex += "FF";
+    return sf::Color(static_cast<std::uint32_t>(std::stoul(hex, nullptr, 16)));
 }
 
 static int
@@ -205,10 +285,10 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
             direction = sonify::Direction::CIRCLE_OUTWARDS;
         else if (strcmp(dir_str, "circle-inwards") == 0)
             direction = sonify::Direction::CIRCLE_INWARDS;
-        else if (strcmp(dir_str, "zigzag-h") == 0)
-            direction = sonify::Direction::ZIGZAG_H;
-        else if (strcmp(dir_str, "zigzag-v") == 0)
-            direction = sonify::Direction::ZIGZAG_V;
+        else if (strcmp(dir_str, "rotate-cw") == 0)
+            direction = sonify::Direction::ROTATE_CW;
+        else if (strcmp(dir_str, "rotate-ccw") == 0)
+            direction = sonify::Direction::ROTATE_CCW;
         else
             return luaL_error(L, "Invalid direction: %s", dir_str);
 
@@ -293,62 +373,63 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         lua_pushvalue(L, 3);
         lua_setfield(L, LUA_REGISTRYINDEX, "sonopix_sonify_func");
 
-        // Persistent context table — reused every call to avoid per-sample alloc
+        // Persistent context table — reused every call to avoid per-sample
+        // alloc
         lua_newtable(L);
         lua_setfield(L, LUA_REGISTRYINDEX, "sonopix_ctx_table");
 
         lua_State *Lc = L;
         window->sonifier()->set_sonify_func(
             [Lc](const sonify::SonifyContext &ctx) -> float
+        {
+            lua_getfield(Lc, LUA_REGISTRYINDEX, "sonopix_sonify_func");
+            lua_getfield(Lc, LUA_REGISTRYINDEX, "sonopix_ctx_table");
+
+            lua_pushnumber(Lc, ctx.sample_rate);
+            lua_setfield(Lc, -2, "sample_rate");
+            lua_pushnumber(Lc, ctx.brightness);
+            lua_setfield(Lc, -2, "brightness");
+            lua_pushinteger(Lc, ctx.x);
+            lua_setfield(Lc, -2, "x");
+            lua_pushinteger(Lc, ctx.y);
+            lua_setfield(Lc, -2, "y");
+            lua_pushinteger(Lc, ctx.width);
+            lua_setfield(Lc, -2, "width");
+            lua_pushinteger(Lc, ctx.height);
+            lua_setfield(Lc, -2, "height");
+            lua_pushnumber(Lc, ctx.t);
+            lua_setfield(Lc, -2, "t");
+            lua_pushnumber(Lc, ctx.strip_t);
+            lua_setfield(Lc, -2, "strip_t");
+            lua_pushinteger(Lc, ctx.strip_index);
+            lua_setfield(Lc, -2, "strip_index");
+            lua_pushinteger(Lc, ctx.strip_count);
+            lua_setfield(Lc, -2, "strip_count");
+            lua_pushnumber(Lc, ctx.fmin);
+            lua_setfield(Lc, -2, "fmin");
+            lua_pushnumber(Lc, ctx.fmax);
+            lua_setfield(Lc, -2, "fmax");
+
+            const char *scale_str = "linear";
+            if (ctx.freq_scale == sonify::FreqScale::LOG)
+                scale_str = "log";
+            else if (ctx.freq_scale == sonify::FreqScale::EXPONENTIAL)
+                scale_str = "exponential";
+            lua_pushstring(Lc, scale_str);
+            lua_setfield(Lc, -2, "scale");
+
+            if (lua_pcall(Lc, 1, 1, 0) != LUA_OK)
             {
-                lua_getfield(Lc, LUA_REGISTRYINDEX, "sonopix_sonify_func");
-                lua_getfield(Lc, LUA_REGISTRYINDEX, "sonopix_ctx_table");
-
-                lua_pushnumber(Lc, ctx.sample_rate);
-                lua_setfield(Lc, -2, "sample_rate");
-                lua_pushnumber(Lc, ctx.brightness);
-                lua_setfield(Lc, -2, "brightness");
-                lua_pushinteger(Lc, ctx.x);
-                lua_setfield(Lc, -2, "x");
-                lua_pushinteger(Lc, ctx.y);
-                lua_setfield(Lc, -2, "y");
-                lua_pushinteger(Lc, ctx.width);
-                lua_setfield(Lc, -2, "width");
-                lua_pushinteger(Lc, ctx.height);
-                lua_setfield(Lc, -2, "height");
-                lua_pushnumber(Lc, ctx.t);
-                lua_setfield(Lc, -2, "t");
-                lua_pushnumber(Lc, ctx.strip_t);
-                lua_setfield(Lc, -2, "strip_t");
-                lua_pushinteger(Lc, ctx.strip_index);
-                lua_setfield(Lc, -2, "strip_index");
-                lua_pushinteger(Lc, ctx.strip_count);
-                lua_setfield(Lc, -2, "strip_count");
-                lua_pushnumber(Lc, ctx.fmin);
-                lua_setfield(Lc, -2, "fmin");
-                lua_pushnumber(Lc, ctx.fmax);
-                lua_setfield(Lc, -2, "fmax");
-
-                const char *scale_str = "linear";
-                if (ctx.freq_scale == sonify::FreqScale::LOG)
-                    scale_str = "log";
-                else if (ctx.freq_scale == sonify::FreqScale::EXPONENTIAL)
-                    scale_str = "exponential";
-                lua_pushstring(Lc, scale_str);
-                lua_setfield(Lc, -2, "scale");
-
-                if (lua_pcall(Lc, 1, 1, 0) != LUA_OK)
-                {
-                    fprintf(stderr, "sonify_func error: %s\n",
-                            lua_tostring(Lc, -1));
-                    lua_pop(Lc, 1);
-                    return 0.0f;
-                }
-
-                const float result = static_cast<float>(lua_tonumber(Lc, -1));
+                fprintf(stderr, "sonify_func error: %s\n",
+                        lua_tostring(Lc, -1));
                 lua_pop(Lc, 1);
-                return result;
-            });
+                return 0.0f;
+            }
+
+            const float result = static_cast<float>(lua_tonumber(Lc, -1));
+            lua_pop(Lc, 1);
+            return result;
+        });
         return 0;
     }
 
@@ -386,6 +467,85 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
             lua_settable(L, 4);
             lua_pop(L, 1);
         }
+        return 0;
+    }
+
+    // sonopix.opts.waveform = { ... }
+    if (strcmp(key, "waveform") == 0)
+    {
+        if (!lua_istable(L, 3))
+            return luaL_error(L, "waveform must be a table");
+        lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_waveform_opts");
+        lua_pushnil(L);
+        while (lua_next(L, 3) != 0)
+        {
+            lua_pushvalue(L, -2);
+            lua_pushvalue(L, -2);
+            lua_settable(L, 4);
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
+    // sonopix.opts.oscilloscope = { ... }
+    if (strcmp(key, "oscilloscope") == 0)
+    {
+        if (!lua_istable(L, 3))
+            return luaL_error(L, "oscilloscope must be a table");
+        lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_oscilloscope_opts");
+        lua_pushnil(L);
+        while (lua_next(L, 3) != 0)
+        {
+            lua_pushvalue(L, -2);
+            lua_pushvalue(L, -2);
+            lua_settable(L, 4);
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
+    // sonopix.opts.progress_bar = { ... }
+    if (strcmp(key, "progress_bar") == 0)
+    {
+        if (!lua_istable(L, 3))
+            return luaL_error(L, "progress_bar must be a table");
+        lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_progress_bar_opts");
+        lua_pushnil(L);
+        while (lua_next(L, 3) != 0)
+        {
+            lua_pushvalue(L, -2);
+            lua_pushvalue(L, -2);
+            lua_settable(L, 4);
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
+    // sonopix.opts.window_title
+    if (strcmp(key, "window_title") == 0)
+    {
+        const char *title = luaL_checkstring(L, 3);
+        window->set_window_title(title);
+        return 0;
+    }
+
+    // sonopix.opts.window_size
+    if (strcmp(key, "window_size") == 0)
+    {
+        if (!lua_istable(L, 3))
+            return luaL_error(L, "window_size must be a table");
+        lua_getfield(L, 3, "width");
+        lua_getfield(L, 3, "height");
+        if (!lua_isnumber(L, -2) || !lua_isnumber(L, -1))
+        {
+            lua_pop(L, 2);
+            return luaL_error(L,
+                              "window_size must have numeric width and height");
+        }
+        int width  = static_cast<int>(lua_tonumber(L, -2));
+        int height = static_cast<int>(lua_tonumber(L, -1));
+        lua_pop(L, 2);
+        window->set_window_size(width, height);
         return 0;
     }
 
@@ -496,24 +656,29 @@ MainWindow::init_lua_sonopix_opts() noexcept
     lua_pushcclosure(m_L, [](lua_State *L) -> int
     {
         const char *key = lua_tostring(L, 2);
+
         if (!key)
         {
             lua_pushnil(L);
             return 1;
         }
+
         MainWindow *window
             = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
         sonify::FreqMap fm = window->sonifier()->freq_map();
+
         if (strcmp(key, "min") == 0)
         {
             lua_pushnumber(L, fm.min);
             return 1;
         }
+
         if (strcmp(key, "max") == 0)
         {
             lua_pushnumber(L, fm.max);
             return 1;
         }
+
         if (strcmp(key, "scale") == 0)
         {
             const char *s = nullptr;
@@ -549,6 +714,7 @@ MainWindow::init_lua_sonopix_opts() noexcept
         MainWindow *window
             = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
         sonify::SonifyEngine *sonifier = window->sonifier();
+
         if (strcmp(key, "min") == 0)
         {
             float fmin = static_cast<float>(luaL_checknumber(L, 3));
@@ -557,6 +723,7 @@ MainWindow::init_lua_sonopix_opts() noexcept
             sonifier->set_freq_range(fmin, sonifier->freq_map().max);
             return 0;
         }
+
         if (strcmp(key, "max") == 0)
         {
             float fmax = static_cast<float>(luaL_checknumber(L, 3));
@@ -565,6 +732,7 @@ MainWindow::init_lua_sonopix_opts() noexcept
             sonifier->set_freq_range(sonifier->freq_map().min, fmax);
             return 0;
         }
+
         if (strcmp(key, "scale") == 0)
         {
             const char *scale_str = luaL_checkstring(L, 3);
@@ -591,6 +759,224 @@ MainWindow::init_lua_sonopix_opts() noexcept
     lua_setmetatable(m_L, -2); // attach metatable to frequency opts table
     lua_pushvalue(m_L, -1);
     lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_frequency_opts");
+    lua_pop(m_L, 1);
+
+    // --- waveform sub-table ---
+    lua_newtable(m_L);
+    lua_newtable(m_L);
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key) { lua_pushnil(L); return 1; }
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        if (strcmp(key, "visible") == 0)
+        {
+            lua_pushboolean(L, w->m_config.waveform.visible ? 1 : 0);
+            return 1;
+        }
+        if (strcmp(key, "height") == 0)
+        {
+            lua_pushinteger(L, w->m_config.waveform.height);
+            return 1;
+        }
+        if (strcmp(key, "color") == 0)
+        {
+            lua_pushstring(L, sf_color_to_hex(w->m_config.waveform.color).c_str());
+            return 1;
+        }
+        lua_pushvalue(L, 2); lua_rawget(L, 1);
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "__index");
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key) return 0;
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        if (strcmp(key, "visible") == 0)
+        {
+            luaL_checktype(L, 3, LUA_TBOOLEAN);
+            w->m_config.waveform.visible = lua_toboolean(L, 3) != 0;
+            return 0;
+        }
+        if (strcmp(key, "height") == 0)
+        {
+            int h = static_cast<int>(luaL_checkinteger(L, 3));
+            if (h <= 0) return luaL_error(L, "waveform.height must be > 0");
+            w->m_config.waveform.height = h;
+            if (w->m_tex_size.x > 0)
+            {
+                w->init_waveform();
+                if (!w->m_audio_engine->dataf().empty())
+                    w->build_waveform();
+            }
+            return 0;
+        }
+        if (strcmp(key, "color") == 0)
+        {
+            w->m_config.waveform.color = hex_to_sf_color(L, 3);
+            if (w->m_tex_size.x > 0 && !w->m_audio_engine->dataf().empty())
+                w->build_waveform();
+            return 0;
+        }
+        lua_pushvalue(L, 2); lua_pushvalue(L, 3); lua_rawset(L, 1);
+        return 0;
+    }, 1);
+    lua_setfield(m_L, -2, "__newindex");
+
+    lua_setmetatable(m_L, -2);
+    lua_pushvalue(m_L, -1);
+    lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_waveform_opts");
+    lua_pop(m_L, 1);
+
+    // --- oscilloscope sub-table ---
+    lua_newtable(m_L);
+    lua_newtable(m_L);
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key) { lua_pushnil(L); return 1; }
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        if (strcmp(key, "visible") == 0)
+        {
+            lua_pushboolean(L, w->m_config.oscilloscope.visible ? 1 : 0);
+            return 1;
+        }
+        if (strcmp(key, "height") == 0)
+        {
+            lua_pushinteger(L, w->m_config.oscilloscope.height);
+            return 1;
+        }
+        if (strcmp(key, "window_samples") == 0)
+        {
+            lua_pushinteger(L, w->m_config.oscilloscope.window_samples);
+            return 1;
+        }
+        if (strcmp(key, "color") == 0)
+        {
+            lua_pushstring(L, sf_color_to_hex(w->m_config.oscilloscope.color).c_str());
+            return 1;
+        }
+        lua_pushvalue(L, 2); lua_rawget(L, 1);
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "__index");
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key) return 0;
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        if (strcmp(key, "visible") == 0)
+        {
+            luaL_checktype(L, 3, LUA_TBOOLEAN);
+            w->m_config.oscilloscope.visible = lua_toboolean(L, 3) != 0;
+            return 0;
+        }
+        if (strcmp(key, "height") == 0)
+        {
+            int h = static_cast<int>(luaL_checkinteger(L, 3));
+            if (h <= 0) return luaL_error(L, "oscilloscope.height must be > 0");
+            w->m_config.oscilloscope.height = h;
+            if (w->m_tex_size.x > 0)
+                w->init_oscilloscope();
+            return 0;
+        }
+        if (strcmp(key, "window_samples") == 0)
+        {
+            int n = static_cast<int>(luaL_checkinteger(L, 3));
+            if (n <= 0) return luaL_error(L, "oscilloscope.window_samples must be > 0");
+            w->m_config.oscilloscope.window_samples = n;
+            return 0;
+        }
+        if (strcmp(key, "color") == 0)
+        {
+            w->m_config.oscilloscope.color = hex_to_sf_color(L, 3);
+            return 0;
+        }
+        lua_pushvalue(L, 2); lua_pushvalue(L, 3); lua_rawset(L, 1);
+        return 0;
+    }, 1);
+    lua_setfield(m_L, -2, "__newindex");
+
+    lua_setmetatable(m_L, -2);
+    lua_pushvalue(m_L, -1);
+    lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_oscilloscope_opts");
+    lua_pop(m_L, 1);
+
+    // --- progress_bar sub-table ---
+    lua_newtable(m_L);
+    lua_newtable(m_L);
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key) { lua_pushnil(L); return 1; }
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        if (strcmp(key, "visible") == 0)
+        {
+            lua_pushboolean(L, w->m_config.progress_bar.visible ? 1 : 0);
+            return 1;
+        }
+        if (strcmp(key, "height") == 0)
+        {
+            lua_pushinteger(L, w->m_config.progress_bar.height);
+            return 1;
+        }
+        if (strcmp(key, "color") == 0)
+        {
+            lua_pushstring(L, sf_color_to_hex(w->m_config.progress_bar.color).c_str());
+            return 1;
+        }
+        lua_pushvalue(L, 2); lua_rawget(L, 1);
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "__index");
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key) return 0;
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        if (strcmp(key, "visible") == 0)
+        {
+            luaL_checktype(L, 3, LUA_TBOOLEAN);
+            w->m_config.progress_bar.visible = lua_toboolean(L, 3) != 0;
+            return 0;
+        }
+        if (strcmp(key, "height") == 0)
+        {
+            int h = static_cast<int>(luaL_checkinteger(L, 3));
+            if (h <= 0) return luaL_error(L, "progress_bar.height must be > 0");
+            w->m_config.progress_bar.height = h;
+            if (w->m_tex_size.x > 0)
+                w->init_playback_bar();
+            return 0;
+        }
+        if (strcmp(key, "color") == 0)
+        {
+            w->m_config.progress_bar.color = hex_to_sf_color(L, 3);
+            if (w->m_playback_fill)
+                w->m_playback_fill->setFillColor(w->m_config.progress_bar.color);
+            return 0;
+        }
+        lua_pushvalue(L, 2); lua_pushvalue(L, 3); lua_rawset(L, 1);
+        return 0;
+    }, 1);
+    lua_setfield(m_L, -2, "__newindex");
+
+    lua_setmetatable(m_L, -2);
+    lua_pushvalue(m_L, -1);
+    lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_progress_bar_opts");
     lua_pop(m_L, 1);
 
     // --- opts table ---
@@ -636,11 +1022,11 @@ MainWindow::init_lua_sonopix_opts() noexcept
                 case sonify::Direction::CIRCLE_INWARDS:
                     dir_str = "circle-inwards";
                     break;
-                case sonify::Direction::ZIGZAG_H:
-                    dir_str = "zigzag-h";
+                case sonify::Direction::ROTATE_CW:
+                    dir_str = "rotate-cw";
                     break;
-                case sonify::Direction::ZIGZAG_V:
-                    dir_str = "zigzag-v";
+                case sonify::Direction::ROTATE_CCW:
+                    dir_str = "rotate-ccw";
                     break;
                 default:
                     return luaL_error(L, "Invalid direction enum value");
@@ -679,6 +1065,25 @@ MainWindow::init_lua_sonopix_opts() noexcept
             return 1;
         }
 
+        // sonopix.opts.window_title
+        if (strcmp(key, "window_title") == 0)
+        {
+            lua_pushstring(L, window->window_title().c_str());
+            return 1;
+        }
+
+        // sonopix.opts.window_size
+        if (strcmp(key, "window_size") == 0)
+        {
+            auto winsize = window->window_size();
+            lua_newtable(L);
+            lua_pushnumber(L, winsize.x);
+            lua_setfield(L, -2, "width");
+            lua_pushnumber(L, winsize.y);
+            lua_setfield(L, -2, "height");
+            return 1;
+        }
+
         // sonopix.opts.channel_count
         if (strcmp(key, "channel_count") == 0)
         {
@@ -689,7 +1094,29 @@ MainWindow::init_lua_sonopix_opts() noexcept
         // sonopix.opts.antialiasing_level
         if (strcmp(key, "antialiasing_level") == 0)
         {
-            lua_pushinteger(L, static_cast<lua_Integer>(window->antialiasing_level()));
+            lua_pushinteger(
+                L, static_cast<lua_Integer>(window->antialiasing_level()));
+            return 1;
+        }
+
+        // sonopix.opts.waveform
+        if (strcmp(key, "waveform") == 0)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_waveform_opts");
+            return 1;
+        }
+
+        // sonopix.opts.oscilloscope
+        if (strcmp(key, "oscilloscope") == 0)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_oscilloscope_opts");
+            return 1;
+        }
+
+        // sonopix.opts.progress_bar
+        if (strcmp(key, "progress_bar") == 0)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_progress_bar_opts");
             return 1;
         }
 

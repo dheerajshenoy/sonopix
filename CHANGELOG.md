@@ -37,9 +37,18 @@
 
 ### Features (post-0.1)
 
+- **Waveform strip** — RMS peak waveform drawn just above the oscilloscope; spans the width of the image; built once after sonification completes; background, bar color, height, and visibility all configurable via `sonopix.opts.waveform`
+- **Oscilloscope strip** — real-time rolling signal view between the waveform and progress bar; shows a configurable sample window centered on the playback position; updated every frame; configurable via `sonopix.opts.oscilloscope` (`height`, `color`, `window_samples`, `visible`)
+- **`sonopix.opts.waveform`** sub-table — `visible`, `height`, `color`; supports both inline and table-form assignment
+- **`sonopix.opts.oscilloscope`** sub-table — `visible`, `height`, `window_samples`, `color`; supports both inline and table-form assignment
+- **`sonopix.opts.progress_bar`** sub-table — `visible`, `height`, `color`; replaces the old boolean-only `show_progress_bar` flag (which is kept for backwards compatibility)
+- **Image layout** — image is now flush against the top of the window; bottom area reserved for waveform + oscilloscope + progress bar; image scales to fill full window width
+- **Waveform seek** — clicking or dragging on the waveform strip seeks the audio; drag is clamped to `[0, 1]` so scrubbing past either edge is safe; works in playing and paused states
+- **`"rotate-cw"` and `"rotate-ccw"` directions** — radar-sweep traversal; a radial line rotates from 12 o'clock (clockwise or counter-clockwise); brightness per strip is the average along that ray; cursor is a clock-hand rectangle pivoted at the image centre
+- ~~`"zigzag-h"` / `"zigzag-v"`~~ — removed
+
 - **Progress bar** — mpv-style 4 px bar pinned to the bottom of the window; dark semi-transparent background track with a bright fill tracking playback position; toggled via `sonopix.opts.show_progress_bar` (default: `true`)
 - **`sonopix.opts.amplitude`** — master gain applied to the audio buffer after sonification (default: `1.0`, must be `>= 0`); captured at `sonify()` call time
-- **Built-in `"zigzag-h"` and `"zigzag-v"` directions** — pixel-level serpentine traversals running entirely in C++; `zigzag-h` alternates rows left→right / right→left, `zigzag-v` alternates columns top→bottom / bottom→top; point cursor tracks the moving pixel
 - **`sonopix.opts.traversal_func`** — custom pixel-level traversal; called **once per strip** by C++ with `(strip_index, total, width, height)`; return `(x, y)` for that strip — no table allocation; a `cursor_width × cursor_width` point cursor tracks the current pixel during playback
 - **Audio export** — `-o / --output FILE` sonifies automatically then saves to WAV or OGG and closes; defaults to `.wav` if no extension given; prints an error and exits if no `--input` was provided
 - **`sonopix.save_audio(filepath)`** Lua binding — saves audio from a script; blocks until sonification completes if still running

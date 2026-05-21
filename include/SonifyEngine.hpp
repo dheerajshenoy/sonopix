@@ -78,8 +78,8 @@ enum class Direction
     BOTTOM_TO_TOP,
     CIRCLE_OUTWARDS,
     CIRCLE_INWARDS,
-    ZIGZAG_H, // pixel-level serpentine: rows alternate left→right / right→left
-    ZIGZAG_V, // pixel-level serpentine: columns alternate top→bottom / bottom→top
+    ROTATE_CW,  // radar sweep clockwise from 12 o'clock
+    ROTATE_CCW, // radar sweep counter-clockwise from 12 o'clock
 };
 
 struct FreqMap
@@ -205,14 +205,14 @@ public:
 
         switch (m_direction)
         {
-            case Direction::LEFT_TO_RIGHT: sonify_left_to_right(); break;
-            case Direction::RIGHT_TO_LEFT: sonify_right_to_left(); break;
-            case Direction::TOP_TO_BOTTOM: sonify_top_to_bottom(); break;
-            case Direction::BOTTOM_TO_TOP: sonify_bottom_to_top(); break;
-            case Direction::CIRCLE_OUTWARDS: sonify_circle(true);  break;
-            case Direction::CIRCLE_INWARDS:  sonify_circle(false); break;
-            case Direction::ZIGZAG_H: sonify_zigzag_h(); break;
-            case Direction::ZIGZAG_V: sonify_zigzag_v(); break;
+            case Direction::LEFT_TO_RIGHT:   sonify_left_to_right(); break;
+            case Direction::RIGHT_TO_LEFT:   sonify_right_to_left(); break;
+            case Direction::TOP_TO_BOTTOM:   sonify_top_to_bottom(); break;
+            case Direction::BOTTOM_TO_TOP:   sonify_bottom_to_top(); break;
+            case Direction::CIRCLE_OUTWARDS: sonify_circle(true);    break;
+            case Direction::CIRCLE_INWARDS:  sonify_circle(false);   break;
+            case Direction::ROTATE_CW:       sonify_rotate(true);    break;
+            case Direction::ROTATE_CCW:      sonify_rotate(false);   break;
         }
     }
 
@@ -323,59 +323,53 @@ private:
             emit_strip(row_brightness(y), 0, y, w, h, spu, (h - 1) - y, h);
     }
 
-    void sonify_zigzag_h()
+    // Shared implementation for ROTATE_CW (clockwise=true) and ROTATE_CCW.
+    // Sweeps radial lines from the image centre, one strip per angle step.
+    // Brightness of each strip = average brightness along that ray.
+    // ctx.x / ctx.y = tip pixel of the ray (last in-bounds sample).
+    void sonify_rotate(bool clockwise)
     {
-        const int w     = m_img.width;
-        const int h     = m_img.height;
-        const int spu   = std::max(1, static_cast<int>(m_sample_rate * m_secs_per_unit));
-        const int total = w * h;
-        m_audio_data.clear();
-        m_audio_data.reserve(static_cast<std::size_t>(total) * spu);
-        int strip_idx = 0;
-        for (int y = 0; y < h; ++y)
-        {
-            if (y % 2 == 0)
-            {
-                for (int x = 0; x < w; ++x, ++strip_idx)
-                    emit_strip(pixel_brightness(
-                        &m_img.data[y * m_img.stride + x * m_img.channels],
-                        m_img.channels), x, y, w, h, spu, strip_idx, total);
-            }
-            else
-            {
-                for (int x = w - 1; x >= 0; --x, ++strip_idx)
-                    emit_strip(pixel_brightness(
-                        &m_img.data[y * m_img.stride + x * m_img.channels],
-                        m_img.channels), x, y, w, h, spu, strip_idx, total);
-            }
-        }
-    }
+        const int   w    = m_img.width;
+        const int   h    = m_img.height;
+        const int   spu  = std::max(1, static_cast<int>(m_sample_rate * m_secs_per_unit));
+        const float cx   = (w - 1) * 0.5f;
+        const float cy   = (h - 1) * 0.5f;
+        const int   num_strips = std::max(w, h);
+        const int   max_steps  = static_cast<int>(std::sqrt(cx * cx + cy * cy)) + 2;
+        constexpr float two_pi = 6.28318530718f;
 
-    void sonify_zigzag_v()
-    {
-        const int w     = m_img.width;
-        const int h     = m_img.height;
-        const int spu   = std::max(1, static_cast<int>(m_sample_rate * m_secs_per_unit));
-        const int total = w * h;
         m_audio_data.clear();
-        m_audio_data.reserve(static_cast<std::size_t>(total) * spu);
-        int strip_idx = 0;
-        for (int x = 0; x < w; ++x)
+        m_audio_data.reserve(static_cast<std::size_t>(num_strips) * spu);
+
+        for (int i = 0; i < num_strips; ++i)
         {
-            if (x % 2 == 0)
+            const float angle = static_cast<float>(i) * two_pi
+                                / static_cast<float>(num_strips);
+            // CW from 12 o'clock: dx=sin, dy=-cos
+            // CCW from 12 o'clock: dx=-sin, dy=-cos
+            const float dx = clockwise ? std::sin(angle) : -std::sin(angle);
+            const float dy = -std::cos(angle);
+
+            float sum  = 0.0f;
+            int   count = 0;
+            for (int step = 0; step <= max_steps; ++step)
             {
-                for (int y = 0; y < h; ++y, ++strip_idx)
-                    emit_strip(pixel_brightness(
-                        &m_img.data[y * m_img.stride + x * m_img.channels],
-                        m_img.channels), x, y, w, h, spu, strip_idx, total);
+                const int ix = static_cast<int>(std::round(cx + dx * step));
+                const int iy = static_cast<int>(std::round(cy + dy * step));
+                if (ix < 0 || ix >= w || iy < 0 || iy >= h)
+                    break;
+                sum += pixel_brightness(
+                    &m_img.data[iy * m_img.stride + ix * m_img.channels],
+                    m_img.channels);
+                ++count;
             }
-            else
-            {
-                for (int y = h - 1; y >= 0; --y, ++strip_idx)
-                    emit_strip(pixel_brightness(
-                        &m_img.data[y * m_img.stride + x * m_img.channels],
-                        m_img.channels), x, y, w, h, spu, strip_idx, total);
-            }
+
+            const float brightness = count > 0
+                ? sum / static_cast<float>(count) : 0.0f;
+            const int tip = std::max(0, count - 1);
+            const int tx  = static_cast<int>(std::round(cx + dx * tip));
+            const int ty  = static_cast<int>(std::round(cy + dy * tip));
+            emit_strip(brightness, tx, ty, w, h, spu, i, num_strips);
         }
     }
 

@@ -61,6 +61,7 @@ public:
     void play() noexcept;
     void stop() noexcept;
     void pause() noexcept;
+    void seek_to_sample(std::size_t sample) noexcept;
     const std::size_t sample_index() const noexcept;
     void set_data(std::vector<float> &&audio_data, float sample_rate);
     bool save(const std::string &filename) const noexcept;

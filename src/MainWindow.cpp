@@ -3,6 +3,8 @@
 #include "lua/init.cpp"
 #include "utils.hpp"
 
+#include <SFML/Graphics/PrimitiveType.hpp>
+#include <SFML/Graphics/VertexArray.hpp>
 #include <SFML/Window/ContextSettings.hpp>
 #include <print>
 
@@ -132,11 +134,11 @@ MainWindow::read_args(const argparse::ArgumentParser &parser)
         else if (dir_str == "circle-inwards")
             direction = sonify::Direction::CIRCLE_INWARDS;
 
-        else if (dir_str == "zigzag-h")
-            direction = sonify::Direction::ZIGZAG_H;
+        else if (dir_str == "rotate-cw")
+            direction = sonify::Direction::ROTATE_CW;
 
-        else if (dir_str == "zigzag-v")
-            direction = sonify::Direction::ZIGZAG_V;
+        else if (dir_str == "rotate-ccw")
+            direction = sonify::Direction::ROTATE_CCW;
 
         else
             throw std::runtime_error("Invalid direction: " + dir_str);
@@ -190,7 +192,9 @@ MainWindow::open_file(const std::string &filename)
 
     float scale = rescale_recenter_image();
     init_cursor(scale);
-    init_playback_bar(scale);
+    init_playback_bar();
+    init_waveform();
+    init_oscilloscope();
 
     const std::uint8_t *data = img.getPixelsPtr(); // RGBA8, size = w*h*4
     if (!data)
@@ -216,6 +220,12 @@ MainWindow::handle_events() noexcept
             handle_resize_event(resizeEvent);
         else if (const auto *keyEvent = e->getIf<sf::Event::KeyPressed>())
             handle_keypress_event(keyEvent);
+        else if (const auto *mouseEvent = e->getIf<sf::Event::MouseButtonPressed>())
+            handle_mouse_press_event(mouseEvent);
+        else if (const auto *mouseEvent = e->getIf<sf::Event::MouseButtonReleased>())
+            handle_mouse_release_event(mouseEvent);
+        else if (const auto *mouseEvent = e->getIf<sf::Event::MouseMoved>())
+            handle_mouse_move_event(mouseEvent);
     }
 }
 
@@ -241,7 +251,68 @@ MainWindow::handle_resize_event(const sf::Event::Resized *e) noexcept
     // Reapply cursor at same image-space offset under new scale
     const sf::Vector2f newOrigin = m_sprite.getPosition();
     init_cursor(scale, newOrigin + relOffset * scale);
-    init_playback_bar(scale, newOrigin);
+    init_playback_bar();
+    init_waveform();
+    init_oscilloscope();
+    if (!m_audio_engine->dataf().empty())
+        build_waveform();
+}
+
+void
+MainWindow::seek_waveform(float mx) noexcept
+{
+    const std::size_t total = m_audio_engine->dataf().size();
+    if (total == 0 || !m_waveform_bg)
+        return;
+
+    const float wave_x     = m_waveform_bg->getPosition().x;
+    const float wave_width = m_waveform_bg->getSize().x;
+    const float progress   = std::clamp((mx - wave_x) / wave_width, 0.f, 1.f);
+    const auto  target     = static_cast<std::size_t>(
+        progress * static_cast<float>(total));
+
+    m_audio_engine->seek_to_sample(target);
+    m_last_sample_index = target;
+}
+
+void
+MainWindow::handle_mouse_press_event(
+    const sf::Event::MouseButtonPressed *e) noexcept
+{
+    if (e->button != sf::Mouse::Button::Left)
+        return;
+    if (!m_config.waveform.visible || !m_waveform_bg)
+        return;
+
+    const float mx      = static_cast<float>(e->position.x);
+    const float my      = static_cast<float>(e->position.y);
+    const float wave_x  = m_waveform_bg->getPosition().x;
+    const float wave_y  = m_waveform_bg->getPosition().y;
+    const float wave_w  = m_waveform_bg->getSize().x;
+    const float wave_h  = m_waveform_bg->getSize().y;
+
+    if (mx < wave_x || mx > wave_x + wave_w
+        || my < wave_y || my > wave_y + wave_h)
+        return;
+
+    m_seeking = true;
+    seek_waveform(mx);
+}
+
+void
+MainWindow::handle_mouse_release_event(
+    const sf::Event::MouseButtonReleased *e) noexcept
+{
+    if (e->button == sf::Mouse::Button::Left)
+        m_seeking = false;
+}
+
+void
+MainWindow::handle_mouse_move_event(const sf::Event::MouseMoved *e) noexcept
+{
+    if (!m_seeking)
+        return;
+    seek_waveform(static_cast<float>(e->position.x));
 }
 
 void
@@ -280,7 +351,8 @@ MainWindow::sonify()
     // line/circle)
     init_cursor(m_sprite.getScale().x);
 
-    m_sonify_future = std::async(std::launch::async, [this, amp = m_config.amplitude]
+    m_sonify_future
+        = std::async(std::launch::async, [this, amp = m_config.amplitude]
     {
         if (!m_using_custom_traversal)
             m_sonifier->sonify();
@@ -372,24 +444,202 @@ MainWindow::save_audio(const std::string &filename) noexcept
 float
 MainWindow::rescale_recenter_image() noexcept
 {
-    const float scaleX
-        = static_cast<float>(m_win_size.x - m_win_size.x * 0.25) / m_tex_size.x;
-    const float scaleY = static_cast<float>(m_win_size.y) / m_tex_size.y;
-    const float scale  = std::min(scaleX, scaleY);
+    const float reserved_bottom
+        = (m_config.waveform.visible ? static_cast<float>(m_config.waveform.height) : 0.f)
+          + (m_config.oscilloscope.visible
+                 ? static_cast<float>(m_config.oscilloscope.height)
+                 : 0.f)
+          + (m_config.progress_bar.visible
+                 ? static_cast<float>(m_config.progress_bar.height)
+                 : 0.f);
+    const float scaleX = static_cast<float>(m_win_size.x) / m_tex_size.x;
+    const float scaleY
+        = static_cast<float>(m_win_size.y - reserved_bottom) / m_tex_size.y;
+    const float scale = std::min(scaleX, scaleY);
 
     m_sprite.setScale({scale, scale});
-    m_sprite.setPosition({(m_win_size.x - m_tex_size.x * scale) * 0.5f,
-                          (m_win_size.y - m_tex_size.y * scale) * 0.5f});
+    m_sprite.setPosition({(m_win_size.x - m_tex_size.x * scale) * 0.5f, 0.f});
     return scale;
 };
 
 void
-MainWindow::init_playback_bar(float /*scale*/,
-                              sf::Vector2<float> /*position*/) noexcept
+MainWindow::init_waveform() noexcept
 {
-    constexpr float bar_height = 4.f;
-    const float bar_width      = static_cast<float>(m_win_size.x);
-    const float bar_y          = static_cast<float>(m_win_size.y) - bar_height;
+    const float wave_height  = static_cast<float>(m_config.waveform.height);
+    const float wave_width   = m_tex_size.x * m_sprite.getScale().x;
+    const float wave_x       = m_sprite.getPosition().x;
+    const float osc_height
+        = m_config.oscilloscope.visible
+              ? static_cast<float>(m_config.oscilloscope.height)
+              : 0.f;
+    const float bar_height
+        = m_config.progress_bar.visible
+              ? static_cast<float>(m_config.progress_bar.height)
+              : 0.f;
+    const float wave_y
+        = static_cast<float>(m_win_size.y) - wave_height - osc_height - bar_height;
+
+    m_waveform_bg = std::make_unique<sf::RectangleShape>();
+    m_waveform_bg->setFillColor(sf::Color(0, 0, 0, 150));
+    m_waveform_bg->setSize({wave_width, wave_height});
+    m_waveform_bg->setPosition({wave_x, wave_y});
+
+    m_waveform = std::make_unique<sf::VertexArray>(sf::PrimitiveType::Lines, 0);
+
+    m_waveform_playhead
+        = std::make_unique<sf::VertexArray>(sf::PrimitiveType::Lines, 2);
+    (*m_waveform_playhead)[0].position = {wave_x, wave_y};
+    (*m_waveform_playhead)[0].color    = sf::Color(255, 255, 255, 220);
+    (*m_waveform_playhead)[1].position = {wave_x, wave_y + wave_height};
+    (*m_waveform_playhead)[1].color    = sf::Color(255, 255, 255, 220);
+}
+
+void
+MainWindow::build_waveform() noexcept
+{
+    if (!m_config.waveform.visible || !m_waveform)
+        return;
+
+    const auto &samples     = m_audio_engine->dataf();
+    const std::size_t total = samples.size();
+    if (total == 0)
+        return;
+
+    const float wave_height  = static_cast<float>(m_config.waveform.height);
+    const float wave_width   = m_tex_size.x * m_sprite.getScale().x;
+    const float wave_x       = m_sprite.getPosition().x;
+    const float osc_height
+        = m_config.oscilloscope.visible
+              ? static_cast<float>(m_config.oscilloscope.height)
+              : 0.f;
+    const float bar_height
+        = m_config.progress_bar.visible
+              ? static_cast<float>(m_config.progress_bar.height)
+              : 0.f;
+    const float wave_y   = static_cast<float>(m_win_size.y) - wave_height - osc_height - bar_height;
+    const float center_y = wave_y + wave_height * 0.5f;
+    const float half     = wave_height * 0.5f;
+    const int   num_cols = static_cast<int>(wave_width);
+
+    m_waveform->resize(static_cast<std::size_t>(num_cols) * 2);
+
+    for (int col = 0; col < num_cols; ++col)
+    {
+        const auto s0 = static_cast<std::size_t>(
+            static_cast<float>(col) / wave_width * static_cast<float>(total));
+        const auto s1 = std::min(
+            static_cast<std::size_t>(static_cast<float>(col + 1) / wave_width
+                                     * static_cast<float>(total)),
+            total);
+        const std::size_t end = s1 > s0 ? s1 : std::min(s0 + 1, total);
+
+        float sum = 0.f;
+        for (std::size_t s = s0; s < end; ++s)
+            sum += samples[s] * samples[s];
+        const float rms = std::sqrt(sum / static_cast<float>(end - s0));
+
+        const float x                       = wave_x + static_cast<float>(col);
+        (*m_waveform)[col * 2].position     = {x, center_y - rms * half};
+        (*m_waveform)[col * 2].color        = m_config.waveform.color;
+        (*m_waveform)[col * 2 + 1].position = {x, center_y + rms * half};
+        (*m_waveform)[col * 2 + 1].color    = m_config.waveform.color;
+    }
+
+    if (m_waveform_playhead)
+    {
+        (*m_waveform_playhead)[0].position = {wave_x, wave_y};
+        (*m_waveform_playhead)[1].position = {wave_x, wave_y + wave_height};
+    }
+}
+
+void
+MainWindow::update_waveform() noexcept
+{
+    if (!m_config.waveform.visible || !m_waveform_playhead)
+        return;
+
+    const std::size_t total = m_audio_engine->dataf().size();
+    if (total == 0)
+        return;
+
+    const float wave_width = m_tex_size.x * m_sprite.getScale().x;
+    const float wave_x    = m_sprite.getPosition().x;
+    const float progress
+        = static_cast<float>(m_last_sample_index) / static_cast<float>(total);
+    const float x                        = wave_x + progress * wave_width;
+    (*m_waveform_playhead)[0].position.x = x;
+    (*m_waveform_playhead)[1].position.x = x;
+}
+
+void
+MainWindow::init_oscilloscope() noexcept
+{
+    const float osc_height = static_cast<float>(m_config.oscilloscope.height);
+    const float osc_width  = static_cast<float>(m_win_size.x);
+    const float bar_height
+        = m_config.progress_bar.visible
+              ? static_cast<float>(m_config.progress_bar.height)
+              : 0.f;
+    const float osc_y = static_cast<float>(m_win_size.y) - osc_height - bar_height;
+
+    m_oscilloscope_bg = std::make_unique<sf::RectangleShape>();
+    m_oscilloscope_bg->setFillColor(sf::Color(0, 0, 0, 180));
+    m_oscilloscope_bg->setSize({osc_width, osc_height});
+    m_oscilloscope_bg->setPosition({0.f, osc_y});
+
+    const int num_pts = static_cast<int>(osc_width);
+    m_oscilloscope
+        = std::make_unique<sf::VertexArray>(sf::PrimitiveType::LineStrip, num_pts);
+    for (int i = 0; i < num_pts; ++i)
+    {
+        (*m_oscilloscope)[i].position = {static_cast<float>(i), osc_y + osc_height * 0.5f};
+        (*m_oscilloscope)[i].color    = m_config.oscilloscope.color;
+    }
+}
+
+void
+MainWindow::update_oscilloscope() noexcept
+{
+    if (!m_config.oscilloscope.visible || !m_oscilloscope)
+        return;
+
+    const auto &samples     = m_audio_engine->dataf();
+    const std::size_t total = samples.size();
+    if (total == 0)
+        return;
+
+    const float osc_height = static_cast<float>(m_config.oscilloscope.height);
+    const float osc_width  = static_cast<float>(m_win_size.x);
+    const float bar_height
+        = m_config.progress_bar.visible
+              ? static_cast<float>(m_config.progress_bar.height)
+              : 0.f;
+    const float osc_y    = static_cast<float>(m_win_size.y) - osc_height - bar_height;
+    const float center_y = osc_y + osc_height * 0.5f;
+    const float half     = osc_height * 0.5f;
+
+    const int    num_pts    = static_cast<int>(osc_width);
+    const int    win_samples = m_config.oscilloscope.window_samples;
+    const auto   cur        = static_cast<std::ptrdiff_t>(m_last_sample_index);
+    const auto   start      = std::max<std::ptrdiff_t>(0, cur - win_samples / 2);
+
+    m_oscilloscope->resize(num_pts);
+    for (int i = 0; i < num_pts; ++i)
+    {
+        const auto idx = static_cast<std::size_t>(
+            start + static_cast<std::ptrdiff_t>(i) * win_samples / num_pts);
+        const float v = (idx < total) ? samples[idx] : 0.f;
+        (*m_oscilloscope)[i].position = {static_cast<float>(i), center_y - v * half};
+        (*m_oscilloscope)[i].color    = m_config.oscilloscope.color;
+    }
+}
+
+void
+MainWindow::init_playback_bar() noexcept
+{
+    const float bar_height = m_config.progress_bar.height;
+    const float bar_width  = static_cast<float>(m_win_size.x);
+    const float bar_y      = static_cast<float>(m_win_size.y) - bar_height;
 
     m_playback_bar = std::make_unique<sf::RectangleShape>();
     m_playback_bar->setFillColor(sf::Color(0, 0, 0, 120));
@@ -412,11 +662,11 @@ MainWindow::update_playback_bar() noexcept
     if (total == 0)
         return;
 
-    const float progress  = static_cast<float>(m_last_sample_index)
-                          / static_cast<float>(total);
-    const float full_w    = m_playback_bar->getSize().x;
-    m_playback_fill->setSize({std::max(0.f, progress * full_w),
-                              m_playback_fill->getSize().y});
+    const float progress
+        = static_cast<float>(m_last_sample_index) / static_cast<float>(total);
+    const float full_w = m_playback_bar->getSize().x;
+    m_playback_fill->setSize(
+        {std::max(0.f, progress * full_w), m_playback_fill->getSize().y});
 }
 
 void
@@ -425,11 +675,7 @@ MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
     if (position == sf::Vector2<float>{})
         position = m_sprite.getPosition();
 
-    const bool pixel_mode = m_using_custom_traversal
-                            || m_config.direction == sonify::Direction::ZIGZAG_H
-                            || m_config.direction == sonify::Direction::ZIGZAG_V;
-
-    if (pixel_mode)
+    if (m_using_custom_traversal)
     {
         auto rect = std::make_unique<sf::RectangleShape>();
         rect->setFillColor(m_config.cursor.color);
@@ -477,6 +723,25 @@ MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
         }
         break;
 
+        case sonify::Direction::ROTATE_CW:
+        case sonify::Direction::ROTATE_CCW:
+        {
+            const float cx_img = m_tex_size.x * 0.5f;
+            const float cy_img = m_tex_size.y * 0.5f;
+            const float max_r  = std::sqrt(cx_img * cx_img + cy_img * cy_img) * scale;
+            const sf::Vector2f center = {
+                m_sprite.getPosition().x + cx_img * scale,
+                m_sprite.getPosition().y + cy_img * scale
+            };
+            auto rect = std::make_unique<sf::RectangleShape>();
+            rect->setFillColor(m_config.cursor.color);
+            rect->setSize({m_config.cursor.width, max_r});
+            rect->setOrigin({m_config.cursor.width * 0.5f, max_r}); // pivot at image center
+            rect->setPosition(center);
+            m_cursor = std::move(rect);
+        }
+        break;
+
         default:
             break;
     }
@@ -513,6 +778,22 @@ MainWindow::render() noexcept
     m_window.draw(m_sprite);
     if (m_cursor)
         m_window.draw(*m_cursor);
+    if (m_config.waveform.visible)
+    {
+        if (m_waveform_bg)
+            m_window.draw(*m_waveform_bg);
+        if (m_waveform && m_waveform->getVertexCount() > 0)
+            m_window.draw(*m_waveform);
+        if (m_waveform_playhead && !m_audio_engine->dataf().empty())
+            m_window.draw(*m_waveform_playhead);
+    }
+    if (m_config.oscilloscope.visible)
+    {
+        if (m_oscilloscope_bg)
+            m_window.draw(*m_oscilloscope_bg);
+        if (m_oscilloscope)
+            m_window.draw(*m_oscilloscope);
+    }
     if (m_config.progress_bar.visible && m_playback_bar)
     {
         m_window.draw(*m_playback_bar);
@@ -532,6 +813,7 @@ MainWindow::update() noexcept
     {
         m_sonify_future = {};
         m_window.setTitle(m_window_title);
+        build_waveform();
 
         if (!m_output_file.empty())
         {
@@ -542,6 +824,8 @@ MainWindow::update() noexcept
 
     move_cursor();
     update_playback_bar();
+    update_waveform();
+    update_oscilloscope();
 }
 
 void
@@ -605,48 +889,21 @@ MainWindow::move_cursor() noexcept
 
     switch (m_config.direction)
     {
-        case sonify::Direction::ZIGZAG_H:
-        {
-            const int w       = static_cast<int>(m_tex_size.x);
-            const int row     = strip / w;
-            const int col_raw = strip % w;
-            const int col     = (row % 2 == 0) ? col_raw : (w - 1 - col_raw);
-            const float scale = m_sprite.getScale().x;
-            auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
-            rect->setSize({m_config.cursor.width, m_config.cursor.width});
-            rect->setPosition({m_sprite.getPosition().x + col * scale,
-                               m_sprite.getPosition().y + row * scale});
-        }
-        break;
-
-        case sonify::Direction::ZIGZAG_V:
-        {
-            const int h       = static_cast<int>(m_tex_size.y);
-            const int col     = strip / h;
-            const int row_raw = strip % h;
-            const int row     = (col % 2 == 0) ? row_raw : (h - 1 - row_raw);
-            const float scale = m_sprite.getScale().x;
-            auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
-            rect->setSize({m_config.cursor.width, m_config.cursor.width});
-            rect->setPosition({m_sprite.getPosition().x + col * scale,
-                               m_sprite.getPosition().y + row * scale});
-        }
-        break;
-
         case sonify::Direction::LEFT_TO_RIGHT:
         case sonify::Direction::RIGHT_TO_LEFT:
         {
             const int w       = static_cast<int>(m_tex_size.x);
             const float scale = m_sprite.getScale().x;
-            const float x = m_config.direction == sonify::Direction::RIGHT_TO_LEFT
-                                ? m_sprite.getPosition().x
-                                      + static_cast<float>(w - strip) * scale
-                                : m_sprite.getPosition().x
-                                      + static_cast<float>(strip) * scale;
+            const float x
+                = m_config.direction == sonify::Direction::RIGHT_TO_LEFT
+                      ? m_sprite.getPosition().x
+                            + static_cast<float>(w - strip) * scale
+                      : m_sprite.getPosition().x
+                            + static_cast<float>(strip) * scale;
 
             auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
-            rect->setSize(
-                {m_config.cursor.width, static_cast<float>(m_tex_size.y) * scale});
+            rect->setSize({m_config.cursor.width,
+                           static_cast<float>(m_tex_size.y) * scale});
             rect->setPosition({x, m_sprite.getPosition().y});
         }
         break;
@@ -656,15 +913,16 @@ MainWindow::move_cursor() noexcept
         {
             const int h       = static_cast<int>(m_tex_size.y);
             const float scale = m_sprite.getScale().y;
-            const float y = m_config.direction == sonify::Direction::BOTTOM_TO_TOP
-                                ? m_sprite.getPosition().y
-                                      + static_cast<float>(h - strip) * scale
-                                : m_sprite.getPosition().y
-                                      + static_cast<float>(strip) * scale;
+            const float y
+                = m_config.direction == sonify::Direction::BOTTOM_TO_TOP
+                      ? m_sprite.getPosition().y
+                            + static_cast<float>(h - strip) * scale
+                      : m_sprite.getPosition().y
+                            + static_cast<float>(strip) * scale;
 
             auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
-            rect->setSize(
-                {static_cast<float>(m_tex_size.x) * scale, m_config.cursor.width});
+            rect->setSize({static_cast<float>(m_tex_size.x) * scale,
+                           m_config.cursor.width});
             rect->setPosition({m_sprite.getPosition().x, y});
         }
         break;
@@ -681,9 +939,10 @@ MainWindow::move_cursor() noexcept
                 = static_cast<int>(std::sqrt(cx_img * cx_img + cy_img * cy_img))
                   + 1;
 
-            const int r = m_config.direction == sonify::Direction::CIRCLE_INWARDS
-                              ? std::max(0, max_r - strip)
-                              : std::min(strip, max_r);
+            const int r
+                = m_config.direction == sonify::Direction::CIRCLE_INWARDS
+                      ? std::max(0, max_r - strip)
+                      : std::min(strip, max_r);
 
             const float radius           = r * scale;
             const sf::Vector2f spritePos = m_sprite.getPosition();
@@ -692,7 +951,8 @@ MainWindow::move_cursor() noexcept
 
             // Subtract half stroke width so the outline is centred on the
             // ring boundary rather than hanging fully outside it.
-            const float inner_r = std::max(0.f, radius - m_config.cursor.width * 0.5f);
+            const float inner_r
+                = std::max(0.f, radius - m_config.cursor.width * 0.5f);
 
             // One point per ~1.5 display pixels of circumference, min 60,
             // so the circle stays smooth at all sizes.
@@ -705,6 +965,30 @@ MainWindow::move_cursor() noexcept
             circle->setOutlineThickness(m_config.cursor.width);
             circle->setRadius(inner_r);
             circle->setPosition({cx_disp - inner_r, cy_disp - inner_r});
+        }
+        break;
+
+        case sonify::Direction::ROTATE_CW:
+        case sonify::Direction::ROTATE_CCW:
+        {
+            const float scale  = m_sprite.getScale().x;
+            const float cx_img = m_tex_size.x * 0.5f;
+            const float cy_img = m_tex_size.y * 0.5f;
+            const float max_r  = std::sqrt(cx_img * cx_img + cy_img * cy_img) * scale;
+            const int num_strips = std::max(
+                static_cast<int>(m_tex_size.x), static_cast<int>(m_tex_size.y));
+            const float angle_deg
+                = static_cast<float>(strip) * 360.0f
+                  / static_cast<float>(num_strips);
+
+            auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
+            rect->setSize({m_config.cursor.width, max_r});
+            rect->setOrigin({m_config.cursor.width * 0.5f, max_r});
+            rect->setPosition({m_sprite.getPosition().x + cx_img * scale,
+                               m_sprite.getPosition().y + cy_img * scale});
+            rect->setRotation(sf::degrees(
+                m_config.direction == sonify::Direction::ROTATE_CW
+                    ? angle_deg : -angle_deg));
         }
         break;
     }
@@ -724,12 +1008,13 @@ MainWindow::set_cursor_width(float w) noexcept
     }
     auto *rect              = static_cast<sf::RectangleShape *>(m_cursor.get());
     const sf::Vector2f size = rect->getSize();
-    if (m_using_custom_traversal || m_config.direction == sonify::Direction::ZIGZAG_H
-        || m_config.direction == sonify::Direction::ZIGZAG_V)
-        rect->setSize({w, w}); // square point cursor
+    if (m_using_custom_traversal)
+        rect->setSize({w, w});
     else if (m_config.direction == sonify::Direction::LEFT_TO_RIGHT
-             || m_config.direction == sonify::Direction::RIGHT_TO_LEFT)
-        rect->setSize({w, size.y});
+             || m_config.direction == sonify::Direction::RIGHT_TO_LEFT
+             || m_config.direction == sonify::Direction::ROTATE_CW
+             || m_config.direction == sonify::Direction::ROTATE_CCW)
+        rect->setSize({w, size.y}); // w = thin dimension, keep length
     else
         rect->setSize({size.x, w});
 }
@@ -738,8 +1023,9 @@ std::string
 MainWindow::cursor_color() const noexcept
 {
     char buf[10];
-    std::snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", m_config.cursor.color.r,
-                  m_config.cursor.color.g, m_config.cursor.color.b, m_config.cursor.color.a);
+    std::snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X",
+                  m_config.cursor.color.r, m_config.cursor.color.g,
+                  m_config.cursor.color.b, m_config.cursor.color.a);
     return std::string(buf);
 }
 

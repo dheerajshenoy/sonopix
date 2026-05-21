@@ -45,8 +45,8 @@ sonopix [options]
 | `bottom-to-top` | Scans rows bottom → top |
 | `circle-outwards` | Scans rings from center outward |
 | `circle-inwards` | Scans rings from edge inward |
-| `zigzag-h` | Pixel-level serpentine: rows alternate left→right / right→left |
-| `zigzag-v` | Pixel-level serpentine: columns alternate top→bottom / bottom→top |
+| `rotate-cw` | Radar sweep clockwise from 12 o'clock; one strip per radial line |
+| `rotate-ccw` | Radar sweep counter-clockwise from 12 o'clock |
 
 ### Keybindings
 
@@ -84,6 +84,9 @@ sonopix.opts = {
     spu       = 0.001,
     frequency = { min = 20, max = 20000, scale = "exponential" },
     cursor    = { width = 3, color = "#FF5000FF" },
+    waveform  = { height = 50, color = "#FFFFFFC8" },
+    oscilloscope = { height = 60, window_samples = 2048, color = "#00FFB4DC" },
+    progress_bar = { height = 6, color = "#FF8800FF" },
     antialiasing_level = 8,
 }
 
@@ -96,7 +99,7 @@ end
 
 | Field | Type | Description |
 |---|---|---|
-| `direction` | string | Scan direction; `"zigzag-h"` / `"zigzag-v"` do pixel-level traversal in C++ |
+| `direction` | string | Scan direction (see table above) |
 | `spu` | number | Seconds of audio per unit (column/row/ring, or pixel for zigzag/custom) |
 | `sample_rate` | number | Audio sample rate in Hz |
 | `frequency.min` | number | Minimum frequency in Hz |
@@ -105,8 +108,19 @@ end
 | `cursor.width` | number | Cursor width in pixels |
 | `cursor.color` | string | Cursor color as `"#RRGGBB"` or `"#RRGGBBAA"` |
 | `amplitude` | number | Master gain applied after sonification (default: `1.0`) |
-| `show_progress_bar` | boolean | Show/hide the 4 px progress bar pinned to the bottom of the window (default: `true`) |
+| `waveform.visible` | boolean | Show/hide the RMS waveform strip (default: `true`) |
+| `waveform.height` | integer | Height of the waveform strip in pixels (default: `40`) |
+| `waveform.color` | string | Waveform bar color as `"#RRGGBB"` or `"#RRGGBBAA"` |
+| `oscilloscope.visible` | boolean | Show/hide the live oscilloscope strip (default: `true`) |
+| `oscilloscope.height` | integer | Height of the oscilloscope strip in pixels (default: `60`) |
+| `oscilloscope.window_samples` | integer | Number of samples shown at once (default: `4096`) |
+| `oscilloscope.color` | string | Oscilloscope line color as `"#RRGGBB"` or `"#RRGGBBAA"` |
+| `progress_bar.visible` | boolean | Show/hide the progress bar (default: `true`) |
+| `progress_bar.height` | integer | Height of the progress bar in pixels (default: `4`) |
+| `progress_bar.color` | string | Progress bar fill color as `"#RRGGBB"` or `"#RRGGBBAA"` |
 | `antialiasing_level` | integer | MSAA sample count; applied at window creation |
+| `window_title` | string | Window title string |
+| `window_size` | table | `{ width = W, height = H }` window dimensions |
 | `traversal_func` | function | Custom pixel order: `(strip_index, total, w, h) → x, y` (see below) |
 | `sonify_func` | function | Custom sonification function: `(ctx) → float` (see below) |
 

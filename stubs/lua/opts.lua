@@ -25,16 +25,36 @@ sonopix = sonopix or {}
 ---@field max? number Maximum frequency in Hz (must be > min)
 ---@field scale? "linear"|"log"|"exponential" Frequency mapping scale (default: "linear")
 
+---@class WaveformOpts
+---@field visible? boolean Show/hide the waveform strip (default: true)
+---@field height? integer Height of the waveform strip in pixels (default: 40)
+---@field color? string RMS bar color as "#RRGGBB" or "#RRGGBBAA" (default: "#FFFFFFC8")
+
+---@class OscilloscopeOpts
+---@field visible? boolean Show/hide the oscilloscope strip (default: true)
+---@field height? integer Height of the oscilloscope strip in pixels (default: 60)
+---@field window_samples? integer Number of audio samples shown at once (default: 4096)
+---@field color? string Line color as "#RRGGBB" or "#RRGGBBAA" (default: "#00FFB4DC")
+
+---@class ProgressBarOpts
+---@field visible? boolean Show/hide the progress bar (default: true)
+---@field height? integer Height of the progress bar in pixels (default: 4)
+---@field color? string Fill color as "#RRGGBB" or "#RRGGBBAA" (default: "#FFFFFFC8")
+
 ---@class SonopixOpts
----@field direction? "left-to-right"|"right-to-left"|"top-to-bottom"|"bottom-to-top"|"circle-outwards"|"circle-inwards"|"zigzag-h"|"zigzag-v" Scan direction
+---@field direction? "left-to-right"|"right-to-left"|"top-to-bottom"|"bottom-to-top"|"circle-outwards"|"circle-inwards"|"rotate-cw"|"rotate-ccw" Scan direction
 ---@field frequency? FrequencyOpts Frequency mapping options
 ---@field spu? number Seconds per unit (column or row); must be > 0
 ---@field cursor? SonopixCursorOpts Cursor appearance options
+---@field waveform? WaveformOpts Full-audio waveform strip options
+---@field oscilloscope? OscilloscopeOpts Live signal oscilloscope strip options
+---@field progress_bar? ProgressBarOpts Playback progress bar options
 ---@field sample_rate? number Sample rate in Hz (must be > 0)
 ---@field channel_count? integer Number of audio channels (must be > 0)
 ---@field amplitude? number Master gain applied to the audio buffer after sonification (default: 1.0, must be >= 0)
----@field show_progress_bar? boolean Show/hide the mpv-style progress bar overlaid at the bottom of the image (default: true)
 ---@field antialiasing_level? integer MSAA sample count (0 = off, 2/4/8 typical); applied at window creation
+---@field window_title? string Window title string
+---@field window_size? { width: integer, height: integer } Window dimensions in pixels
 ---@field traversal_func? fun(strip_index: integer, total: integer, width: integer, height: integer): integer, integer Custom pixel traversal; called once per strip with (strip_index, total, width, height); return (x, y) for that strip
 ---@field sonify_func? fun(ctx: SonifyContext): number Custom sonification function; receives context per sample and returns a float in [-1, 1]
 

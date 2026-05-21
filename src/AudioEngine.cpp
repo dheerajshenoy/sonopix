@@ -62,6 +62,14 @@ AudioEngine::save(const std::string &filename) const noexcept
     return true;
 }
 
+void
+AudioEngine::seek_to_sample(std::size_t sample) noexcept
+{
+    const float secs = static_cast<float>(sample)
+                       / (m_sample_rate * static_cast<float>(m_channel_count));
+    m_sound.setPlayingOffset(sf::seconds(secs));
+}
+
 // Returns the current sample index based on the playing offset of the sound.
 const std::size_t
 AudioEngine::sample_index() const noexcept

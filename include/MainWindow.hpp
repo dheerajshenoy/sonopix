@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AudioEngine.hpp"
+#include "Config.hpp"
 #include "SonifyEngine.hpp"
 #include "thirdparty/argparse.hpp"
 
@@ -15,36 +16,12 @@
 #include <utility>
 #include <vector>
 
-struct CursorOpts
-{
-    float     width = 5.0f;
-    sf::Color color = sf::Color(255, 0, 0, 128);
-};
-
-struct ProgressBarOpts
-{
-    bool      visible = true;
-    sf::Color color   = sf::Color(255, 255, 255, 200);
-};
-
-struct Config
-{
-    CursorOpts          cursor;
-    ProgressBarOpts     progress_bar;
-    float               amplitude   = 1.0f;
-    sonify::Direction   direction   = sonify::Direction::LEFT_TO_RIGHT;
-    sf::ContextSettings window;     // antialiasing, depth bits, etc.
-    bool                verbose     = false;
-};
-
 class MainWindow
 {
 
 public:
     MainWindow();
     ~MainWindow();
-    void main_loop();
-    void read_args(const argparse::ArgumentParser &parser);
 
     inline sonify::SonifyEngine *sonifier() noexcept
     {
@@ -61,29 +38,82 @@ public:
         m_config.direction = dir;
         m_sonifier->set_direction(dir);
     }
-    inline sonify::Direction direction() const noexcept { return m_config.direction; }
 
-    void set_cursor_width(float w) noexcept;
-    void set_cursor_color(const std::string &color_str) noexcept;
-    std::string cursor_color() const noexcept;
+    inline sonify::Direction direction() const noexcept
+    {
+        return m_config.direction;
+    }
 
-    inline void  set_amplitude(float amp) noexcept        { m_config.amplitude = amp; }
-    inline float amplitude() const noexcept               { return m_config.amplitude; }
+    inline void set_amplitude(float amp) noexcept
+    {
+        m_config.amplitude = amp;
+    }
 
-    inline float cursor_width() const noexcept            { return m_config.cursor.width; }
+    inline float amplitude() const noexcept
+    {
+        return m_config.amplitude;
+    }
 
-    inline void set_show_progress_bar(bool show) noexcept { m_config.progress_bar.visible = show; }
-    inline bool show_progress_bar() const noexcept        { return m_config.progress_bar.visible; }
+    inline float cursor_width() const noexcept
+    {
+        return m_config.cursor.width;
+    }
+
+    inline void set_show_progress_bar(bool show) noexcept
+    {
+        m_config.progress_bar.visible = show;
+    }
+
+    inline bool show_progress_bar() const noexcept
+    {
+        return m_config.progress_bar.visible;
+    }
 
     inline void set_antialiasing_level(unsigned int level) noexcept
     {
         m_config.window.antiAliasingLevel = level;
     }
+
     inline unsigned int antialiasing_level() const noexcept
     {
         return m_config.window.antiAliasingLevel;
     }
 
+    inline std::string file_path() const noexcept
+    {
+        return m_input_file;
+    }
+
+    inline void set_window_title(const std::string &title) noexcept
+    {
+        m_window_title = title;
+        if (m_window.isOpen())
+            m_window.setTitle(m_window_title);
+    }
+
+    inline std::string window_title() const noexcept
+    {
+        return m_window_title;
+    }
+
+    inline sf::Vector2u window_size() const noexcept
+    {
+        return m_window_size;
+    }
+
+    inline void set_window_size(unsigned int width,
+                                unsigned int height) noexcept
+    {
+        m_window_size = {width, height};
+        if (m_window.isOpen())
+            m_window.setSize(m_window_size);
+    }
+
+    void main_loop();
+    void read_args(const argparse::ArgumentParser &parser);
+    void set_cursor_width(float w) noexcept;
+    void set_cursor_color(const std::string &color_str) noexcept;
+    std::string cursor_color() const noexcept;
     bool save_audio(const std::string &filename) noexcept;
 
 private:
@@ -106,6 +136,10 @@ private:
     void handle_events() noexcept;
     void handle_resize_event(const sf::Event::Resized *e) noexcept;
     void handle_keypress_event(const sf::Event::KeyPressed *e) noexcept;
+    void handle_mouse_press_event(const sf::Event::MouseButtonPressed *e) noexcept;
+    void handle_mouse_release_event(const sf::Event::MouseButtonReleased *e) noexcept;
+    void handle_mouse_move_event(const sf::Event::MouseMoved *e) noexcept;
+    void seek_waveform(float mx) noexcept;
 
     float rescale_recenter_image() noexcept;
     void render() noexcept;
@@ -114,8 +148,12 @@ private:
 
     void init_cursor(float scale                 = 1.0f,
                      sf::Vector2<float> position = {}) noexcept;
-    void init_playback_bar(float scale                 = 1.0f,
-                           sf::Vector2<float> position = {}) noexcept;
+    void init_playback_bar() noexcept;
+    void init_waveform() noexcept;
+    void build_waveform() noexcept;
+    void update_waveform() noexcept;
+    void init_oscilloscope() noexcept;
+    void update_oscilloscope() noexcept;
     void update_playback_bar() noexcept;
     void create_window() noexcept;
 
@@ -133,12 +171,18 @@ private:
     std::unique_ptr<sf::Shape> m_cursor;
     std::unique_ptr<sf::RectangleShape> m_playback_bar;
     std::unique_ptr<sf::RectangleShape> m_playback_fill;
+    std::unique_ptr<sf::RectangleShape> m_waveform_bg;
+    std::unique_ptr<sf::VertexArray> m_waveform;
+    std::unique_ptr<sf::VertexArray> m_waveform_playhead;
+    std::unique_ptr<sf::RectangleShape> m_oscilloscope_bg;
+    std::unique_ptr<sf::VertexArray> m_oscilloscope;
     sf::Clock m_clock;
 
-    Config            m_config;
+    Config m_config;
     std::future<void> m_sonify_future;
     std::size_t m_last_sample_index = 0;
     std::vector<std::pair<int, int>> m_traversal_pixels;
-    bool m_using_custom_traversal   = false;
-    lua_State *m_L                  = nullptr;
+    bool m_using_custom_traversal = false;
+    bool m_seeking                = false;
+    lua_State *m_L                = nullptr;
 };
