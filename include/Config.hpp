@@ -3,6 +3,7 @@
 #include "SonifyEngine.hpp"
 
 #include <SFML/Graphics.hpp>
+#include <cstdint>
 
 struct CursorOpts
 {
@@ -45,8 +46,25 @@ struct ImageEffectsOpts
     bool  invert     = false;
 };
 
+struct AudioEffectsOpts
+{
+    float gain             = 1.0f;  // master gain (stacks with amplitude)
+    // delay
+    float delay_time       = 0.3f;  // seconds
+    float delay_feedback   = 0.5f;  // 0–1
+    float delay_mix        = 0.0f;  // 0 = off
+    // reverb
+    float reverb_room      = 0.5f;  // 0–1
+    float reverb_damping   = 0.5f;  // 0–1
+    float reverb_mix       = 0.0f;  // 0 = off
+    // distortion
+    float distortion_drive = 0.5f;  // 0–1
+    float distortion_mix   = 0.0f;  // 0 = off
+};
+
 struct Config
 {
+    AudioEffectsOpts audio_effects;
     ImageEffectsOpts image_effects;
     CursorOpts cursor;
     ProgressBarOpts progress_bar;

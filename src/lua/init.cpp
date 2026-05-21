@@ -536,6 +536,23 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         return 0;
     }
 
+    // sonopix.opts.audio_effects
+    if (strcmp(key, "audio_effects") == 0)
+    {
+        if (!lua_istable(L, 3))
+            return luaL_error(L, "audio_effects must be a table");
+        lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_audio_effects_opts");
+        lua_pushnil(L);
+        while (lua_next(L, 3) != 0)
+        {
+            lua_pushvalue(L, -2);
+            lua_pushvalue(L, -2);
+            lua_settable(L, 4);
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
     // sonopix.opts.image_effects
     if (strcmp(key, "image_effects") == 0)
     {
@@ -1011,7 +1028,115 @@ MainWindow::init_lua_sonopix_opts() noexcept
     lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_progress_bar_opts");
     lua_pop(m_L, 1);
 
-    // --- effects sub-table ---
+    // --- audio_effects sub-table ---
+    lua_newtable(m_L);
+    lua_newtable(m_L);
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key) { lua_pushnil(L); return 1; }
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        const auto &ae = w->m_config.audio_effects;
+
+        if (strcmp(key, "gain") == 0) { lua_pushnumber(L, ae.gain); return 1; }
+
+        // delay sub-table
+        if (strcmp(key, "delay") == 0)
+        {
+            lua_newtable(L);
+            lua_pushnumber(L, ae.delay_time);     lua_setfield(L, -2, "time");
+            lua_pushnumber(L, ae.delay_feedback);  lua_setfield(L, -2, "feedback");
+            lua_pushnumber(L, ae.delay_mix);       lua_setfield(L, -2, "mix");
+            return 1;
+        }
+        // reverb sub-table
+        if (strcmp(key, "reverb") == 0)
+        {
+            lua_newtable(L);
+            lua_pushnumber(L, ae.reverb_room);    lua_setfield(L, -2, "room_size");
+            lua_pushnumber(L, ae.reverb_damping); lua_setfield(L, -2, "damping");
+            lua_pushnumber(L, ae.reverb_mix);     lua_setfield(L, -2, "mix");
+            return 1;
+        }
+        // distortion sub-table
+        if (strcmp(key, "distortion") == 0)
+        {
+            lua_newtable(L);
+            lua_pushnumber(L, ae.distortion_drive); lua_setfield(L, -2, "drive");
+            lua_pushnumber(L, ae.distortion_mix);   lua_setfield(L, -2, "mix");
+            return 1;
+        }
+
+        lua_pushvalue(L, 2); lua_rawget(L, 1);
+        return 1;
+    }, 1);
+    lua_setfield(m_L, -2, "__index");
+
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *key = lua_tostring(L, 2);
+        if (!key) return 0;
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        auto &ae = w->m_config.audio_effects;
+
+        if (strcmp(key, "gain") == 0)
+        {
+            ae.gain = static_cast<float>(luaL_checknumber(L, 3));
+            return 0;
+        }
+        if (strcmp(key, "delay") == 0)
+        {
+            if (!lua_istable(L, 3)) return luaL_error(L, "delay must be a table");
+            lua_getfield(L, 3, "time");
+            if (lua_isnumber(L, -1)) ae.delay_time = static_cast<float>(lua_tonumber(L, -1));
+            lua_pop(L, 1);
+            lua_getfield(L, 3, "feedback");
+            if (lua_isnumber(L, -1)) ae.delay_feedback = static_cast<float>(lua_tonumber(L, -1));
+            lua_pop(L, 1);
+            lua_getfield(L, 3, "mix");
+            if (lua_isnumber(L, -1)) ae.delay_mix = static_cast<float>(lua_tonumber(L, -1));
+            lua_pop(L, 1);
+            return 0;
+        }
+        if (strcmp(key, "reverb") == 0)
+        {
+            if (!lua_istable(L, 3)) return luaL_error(L, "reverb must be a table");
+            lua_getfield(L, 3, "room_size");
+            if (lua_isnumber(L, -1)) ae.reverb_room = static_cast<float>(lua_tonumber(L, -1));
+            lua_pop(L, 1);
+            lua_getfield(L, 3, "damping");
+            if (lua_isnumber(L, -1)) ae.reverb_damping = static_cast<float>(lua_tonumber(L, -1));
+            lua_pop(L, 1);
+            lua_getfield(L, 3, "mix");
+            if (lua_isnumber(L, -1)) ae.reverb_mix = static_cast<float>(lua_tonumber(L, -1));
+            lua_pop(L, 1);
+            return 0;
+        }
+        if (strcmp(key, "distortion") == 0)
+        {
+            if (!lua_istable(L, 3)) return luaL_error(L, "distortion must be a table");
+            lua_getfield(L, 3, "drive");
+            if (lua_isnumber(L, -1)) ae.distortion_drive = static_cast<float>(lua_tonumber(L, -1));
+            lua_pop(L, 1);
+            lua_getfield(L, 3, "mix");
+            if (lua_isnumber(L, -1)) ae.distortion_mix = static_cast<float>(lua_tonumber(L, -1));
+            lua_pop(L, 1);
+            return 0;
+        }
+        lua_pushvalue(L, 2); lua_pushvalue(L, 3); lua_rawset(L, 1);
+        return 0;
+    }, 1);
+    lua_setfield(m_L, -2, "__newindex");
+
+    lua_setmetatable(m_L, -2);
+    lua_pushvalue(m_L, -1);
+    lua_setfield(m_L, LUA_REGISTRYINDEX, "sonopix_audio_effects_opts");
+    lua_pop(m_L, 1);
+
+    // --- image_effects sub-table ---
     lua_newtable(m_L);
     lua_newtable(m_L);
 
@@ -1200,10 +1325,17 @@ MainWindow::init_lua_sonopix_opts() noexcept
             return 1;
         }
 
-        // sonopix.opts.effects
-        if (strcmp(key, "effects") == 0)
+        // sonopix.opts.image_effects
+        if (strcmp(key, "image_effects") == 0)
         {
             lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_image_effects_opts");
+            return 1;
+        }
+
+        // sonopix.opts.audio_effects
+        if (strcmp(key, "audio_effects") == 0)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_audio_effects_opts");
             return 1;
         }
 

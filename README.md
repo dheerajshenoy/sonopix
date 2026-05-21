@@ -113,6 +113,10 @@ end
 | `amplitude` | number | Master gain applied after sonification (default: `1.0`) |
 | `loop` | boolean | Loop playback when audio ends (default: `false`); also toggled with `L` |
 | `image_rotation` | number | Rotation of the displayed image in degrees (default: `0`); cursor tracks the rotated image |
+| `audio_effects.gain` | number | Master gain multiplier applied after sonification (default: `1.0`) |
+| `audio_effects.delay` | table | `{ time, feedback, mix }` — delay line; `mix = 0` disables |
+| `audio_effects.reverb` | table | `{ room_size, damping, mix }` — Schroeder reverb; `mix = 0` disables |
+| `audio_effects.distortion` | table | `{ drive, mix }` — soft-clip tanh distortion; `mix = 0` disables |
 | `image_effects.grayscale` | number | Desaturate toward greyscale; `0` = off, `1` = full (default: `0`) |
 | `image_effects.brightness` | number | Additive brightness shift in `[-1, 1]` (default: `0`) |
 | `image_effects.saturation` | number | Saturation multiplier; `0` = greyscale, `1` = original (default: `1`) |

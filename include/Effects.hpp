@@ -1,21 +1,29 @@
 #pragma once
 
-#include <cstdint>
 #include <vector>
 
 class Effects
 {
 public:
-    static std::vector<float> Reverb(std::vector<float> &audio_data,
+    // Gain: multiply every sample by `gain`
+    static void Gain(std::vector<float> &data, float gain) noexcept;
+
+    // Delay line: delay_time in seconds, feedback in [0,1], mix in [0,1]
+    static std::vector<float> Delay(const std::vector<float> &data,
+                                    float sample_rate,
+                                    float delay_time = 0.3f,
+                                    float feedback   = 0.5f,
+                                    float mix        = 0.5f);
+
+    // Schroeder reverb: room_size in [0,1], damping in [0,1], mix in [0,1]
+    static std::vector<float> Reverb(const std::vector<float> &data,
                                      float sample_rate,
-                                     float reverb_time = 0.5f);
+                                     float room_size = 0.5f,
+                                     float damping   = 0.5f,
+                                     float mix       = 0.3f);
 
-    // delay
-    static std::vector<float> Delay(std::vector<float> &audio_data,
-                                    float sample_rate, float delay_time = 0.3f,
-                                    float feedback = 0.5f);
-
-    // distortion
-    static std::vector<float> Distortion(std::vector<float> &audio_data,
-                                         float sample_rate, float gain = 20.0f);
+    // Soft-clip distortion: drive in [0,1], mix in [0,1]
+    static std::vector<float> Distortion(const std::vector<float> &data,
+                                         float drive = 0.5f,
+                                         float mix   = 1.0f);
 };

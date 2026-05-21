@@ -52,6 +52,12 @@ sonopix = sonopix or {}
 ---@field threshold?  number Luminance cutoff [0, 1]: pixels above → white, below → black; negative = off (default: -1)
 ---@field invert?     boolean Invert all colours (default: false)
 
+---@class AudioEffectsOpts
+---@field gain? number Master gain applied to the audio buffer after sonification (default: 1.0, must be >= 0)
+---@field delay? { time: number, feedback: number, mix: number } Simple delay effect with time in seconds, feedback amount [0, 1], and wet/dry mix [0, 1]
+---@field reverb? { room_size: number, damping: number, mix: number } Simple reverb effect with room size [0, 1], damping [0, 1], and wet/dry mix [0, 1]
+---@field distortion? { drive: number, mix: number } Simple distortion effect with drive amount [0, 1] and wet/dry mix [0, 1]
+
 ---@class SonopixOpts
 ---@field direction? "left-to-right"|"right-to-left"|"top-to-bottom"|"bottom-to-top"|"circle-outwards"|"circle-inwards"|"rotate-cw"|"rotate-ccw" Scan direction
 ---@field frequency? FrequencyOpts Frequency mapping options
@@ -64,6 +70,7 @@ sonopix = sonopix or {}
 ---@field channel_count? integer Number of audio channels (must be > 0)
 ---@field amplitude? number Master gain applied to the audio buffer after sonification (default: 1.0, must be >= 0)
 ---@field image_effects? ImageEffectsOpts Real-time image effects applied via GLSL shader
+---@field audio_effects? AudioEffectsOpts Real-time audio effects applied in the audio callback (not yet implemented)
 ---@field loop? boolean Loop playback when the audio reaches the end (default: false)
 ---@field image_rotation? number Rotation of the displayed image in degrees (default: 0); cursor tracks the rotated image
 ---@field antialiasing_level? integer MSAA sample count (0 = off, 2/4/8 typical); applied at window creation

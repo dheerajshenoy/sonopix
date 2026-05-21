@@ -13,6 +13,7 @@ add_executable(${PROJECT_NAME}
     src/main.cpp
     src/MainWindow.cpp
     src/AudioEngine.cpp
+    src/Effects.cpp
     src/shaders/image_effects.cpp
 )
 

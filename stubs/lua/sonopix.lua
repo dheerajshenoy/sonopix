@@ -54,28 +54,3 @@ sonopix.audio_dataf = function() end
 ---@return boolean success True if the file was written successfully
 sonopix.save_audio = function(filepath) end
 
----Effects that can be applied to the sonified audio. Each effect is a function that takes the current audio data and modifies it in place.
-sonopix.effects = {}
-
----@class ReverbOpts
----@field decay_time number Reverb decay time in seconds (must be > 0)
----@field mix number Wet/dry mix level in [0, 1] (0 = dry only, 1 = wet only)
-
----Applies a reverb effect
----@param opts ReverbOpts Reverb options
-sonopix.effects.reverb = function(opts) end
-
----@class DelayOpts
----@field delay_time number Delay time in seconds (must be > 0)
----@field feedback number Feedback level in [0, 1) (0 = no feedback, higher values create more echoes)
----@field mix number Wet/dry mix level in [0, 1] (0 = dry only, 1 = wet only)
-
----Applies a delay effect
----@param opts DelayOpts Delay options
-sonopix.effects.delay = function(opts) end
-
----Applies a distortion effect
----@param gain number Distortion gain factor (must be > 0, typical values are between
-sonopix.effects.distortion = function(gain) end
-
-

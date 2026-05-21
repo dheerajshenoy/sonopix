@@ -1,5 +1,6 @@
 #include "MainWindow.hpp"
 
+#include "Effects.hpp"
 #include "lua/init.cpp"
 #include "shaders/image_effects.hpp"
 #include "utils.hpp"
@@ -381,8 +382,9 @@ MainWindow::sonify()
     // line/circle)
     init_cursor(m_sprite.getScale().x);
 
-    m_sonify_future
-        = std::async(std::launch::async, [this, amp = m_config.amplitude]
+    m_sonify_future = std::async(
+        std::launch::async,
+        [this, amp = m_config.amplitude, ae = m_config.audio_effects]
     {
         if (!m_using_custom_traversal)
             m_sonifier->sonify();
@@ -392,11 +394,33 @@ MainWindow::sonify()
         auto audio_data = m_sonifier->take_audio();
         if (audio_data.empty())
             return;
-        if (amp != 1.0f)
-            for (float &s : audio_data)
-                s *= amp;
-        m_audio_engine->set_data(std::move(audio_data),
-                                 m_sonifier->sample_rate());
+
+        const float sr = m_sonifier->sample_rate();
+
+        // Amplitude (legacy) + gain
+        const float total_gain = amp * ae.gain;
+        if (total_gain != 1.0f)
+            Effects::Gain(audio_data, total_gain);
+
+        // Distortion before reverb/delay so it feeds into the wet signal
+        if (ae.distortion_mix > 0.f)
+            audio_data = Effects::Distortion(audio_data,
+                                             ae.distortion_drive,
+                                             ae.distortion_mix);
+
+        if (ae.reverb_mix > 0.f)
+            audio_data = Effects::Reverb(audio_data, sr,
+                                         ae.reverb_room,
+                                         ae.reverb_damping,
+                                         ae.reverb_mix);
+
+        if (ae.delay_mix > 0.f)
+            audio_data = Effects::Delay(audio_data, sr,
+                                        ae.delay_time,
+                                        ae.delay_feedback,
+                                        ae.delay_mix);
+
+        m_audio_engine->set_data(std::move(audio_data), sr);
     });
 
     return true;
