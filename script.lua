@@ -54,24 +54,25 @@ end
 
 s.opts = {
     -- traversal_func overrides direction; keep direction commented out.
-    traversal_func = diagonal,
+    -- traversal_func = diagonal,
     sonify_func    = sonify,
     -- 5e-6 s/pixel ≈ 1 sample/pixel at 44100 Hz — keeps audio duration sane.
-    spu       = 5e-6,
-    frequency = { min = 20, max = 20000, scale = "log" },
+    -- spu       = 5e-6,
+    spu=1e-3,
+    frequency = { min = 20, max = 20000, scale = "exponential" },
     cursor    = { width = 3, color = "#FF5000FF" },
-    waveform        = { height = 50, color = "#FFFFFFC8" },
-    oscilloscope    = { height = 60, window_samples = 2048, color = "#00FFB4DC" },
-    progress_bar    = { height = 6, color = "#FF8800FF" },
-    antialiasing_level = 8,
+    waveform        = { height = 0.12, color = "#FFFFFFC8" },
+    oscilloscope    = { height = 0.10, window_samples = 2048, color = "#00FFB4DC" },
+    progress_bar    = { height = 0.01, color = "#FF8800FF" },
+    antialiasing_level = 16,
 }
 
-local random_file = random_file_from_dir("/home/dheeraj/Gits/wallpapers/")
+-- local random_file = random_file_from_dir("/home/neo/Gits/wallpapers/")
 
-if random_file then
-    if s.open_file(random_file) then
-        if s.sonify() then
-            s.play()
-        end
-    end
+s.on("sonify_complete", function()
+    s.play()
+end)
+
+if s.open_file("/home/neo/Downloads/space.webp") then
+    s.sonify()
 end

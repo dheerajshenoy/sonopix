@@ -13,23 +13,23 @@ struct CursorOpts
 
 struct ProgressBarOpts
 {
-    int height      = 4;
+    float height    = 0.007f; // fraction of window height
     bool visible    = true;
     sf::Color color = sf::Color(255, 255, 255, 200);
 };
 
 struct WaveformOpts
 {
-    int height      = 40;
+    float height    = 0.08f; // fraction of window height
     bool visible    = true;
     sf::Color color = sf::Color(255, 255, 255, 200);
 };
 
 struct OscilloscopeOpts
 {
-    int height        = 60;
+    float height      = 0.1f; // fraction of window height
     bool visible      = true;
-    int window_samples = 4096; // samples shown at once
+    int window_samples = 4096;
     sf::Color color   = sf::Color(0, 255, 180, 220);
 };
 

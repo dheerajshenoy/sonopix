@@ -161,6 +161,22 @@ MainWindow::init_lua_sonopix() noexcept
     }, 1);
     lua_setfield(m_L, -2, "is_stopped");
 
+    // sonopix.on(event: string, fn: function)
+    // Events: "sonify_complete", "file_loaded", "playback_end"
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        const char *event = luaL_checkstring(L, 1);
+        luaL_checktype(L, 2, LUA_TFUNCTION);
+        MainWindow *window = static_cast<MainWindow *>(
+            lua_touserdata(L, lua_upvalueindex(1)));
+        lua_pushvalue(L, 2);
+        int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        window->m_event_listeners[event].push_back(ref);
+        return 0;
+    }, 1);
+    lua_setfield(m_L, -2, "on");
+
     // sonopix.current_time() -> number
     lua_pushlightuserdata(m_L, this);
     lua_pushcclosure(m_L, [](lua_State *L) -> int
@@ -852,7 +868,7 @@ MainWindow::init_lua_sonopix_opts() noexcept
         }
         if (strcmp(key, "height") == 0)
         {
-            lua_pushinteger(L, w->m_config.waveform.height);
+            lua_pushnumber(L, w->m_config.waveform.height);
             return 1;
         }
         if (strcmp(key, "color") == 0)
@@ -879,8 +895,8 @@ MainWindow::init_lua_sonopix_opts() noexcept
         }
         if (strcmp(key, "height") == 0)
         {
-            int h = static_cast<int>(luaL_checkinteger(L, 3));
-            if (h <= 0) return luaL_error(L, "waveform.height must be > 0");
+            float h = static_cast<float>(luaL_checknumber(L, 3));
+            if (h <= 0.f) return luaL_error(L, "waveform.height must be > 0");
             w->m_config.waveform.height = h;
             if (w->m_tex_size.x > 0)
             {
@@ -924,7 +940,7 @@ MainWindow::init_lua_sonopix_opts() noexcept
         }
         if (strcmp(key, "height") == 0)
         {
-            lua_pushinteger(L, w->m_config.oscilloscope.height);
+            lua_pushnumber(L, w->m_config.oscilloscope.height);
             return 1;
         }
         if (strcmp(key, "window_samples") == 0)
@@ -956,8 +972,8 @@ MainWindow::init_lua_sonopix_opts() noexcept
         }
         if (strcmp(key, "height") == 0)
         {
-            int h = static_cast<int>(luaL_checkinteger(L, 3));
-            if (h <= 0) return luaL_error(L, "oscilloscope.height must be > 0");
+            float h = static_cast<float>(luaL_checknumber(L, 3));
+            if (h <= 0.f) return luaL_error(L, "oscilloscope.height must be > 0");
             w->m_config.oscilloscope.height = h;
             if (w->m_tex_size.x > 0)
                 w->init_oscilloscope();
@@ -1002,7 +1018,7 @@ MainWindow::init_lua_sonopix_opts() noexcept
         }
         if (strcmp(key, "height") == 0)
         {
-            lua_pushinteger(L, w->m_config.progress_bar.height);
+            lua_pushnumber(L, w->m_config.progress_bar.height);
             return 1;
         }
         if (strcmp(key, "color") == 0)
@@ -1029,8 +1045,8 @@ MainWindow::init_lua_sonopix_opts() noexcept
         }
         if (strcmp(key, "height") == 0)
         {
-            int h = static_cast<int>(luaL_checkinteger(L, 3));
-            if (h <= 0) return luaL_error(L, "progress_bar.height must be > 0");
+            float h = static_cast<float>(luaL_checknumber(L, 3));
+            if (h <= 0.f) return luaL_error(L, "progress_bar.height must be > 0");
             w->m_config.progress_bar.height = h;
             if (w->m_tex_size.x > 0)
                 w->init_playback_bar();

@@ -28,6 +28,15 @@ init_args(argparse::ArgumentParser &parser)
         .nargs(1)
         .metavar("FILE");
 
+    parser.add_argument("--hot-reload")
+        .help("Enable hot-reloading of the Lua script (re-executes the script "
+              "whenever it "
+              "is modified)."
+              "Works only if a script is specified with --script.")
+        .default_value(false)
+        .implicit_value(true)
+        .flag();
+
     parser.add_argument("--verbose")
         .help("Enable verbose output for debugging.")
         .default_value(false)

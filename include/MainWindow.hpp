@@ -11,9 +11,13 @@
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Window.hpp>
 #include <SFML/Window/ContextSettings.hpp>
+#include <atomic>
 #include <future>
 #include <lua.hpp>
 #include <memory>
+#include <string>
+#include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -76,7 +80,10 @@ public:
         m_audio_engine->set_looping(loop);
     }
 
-    inline bool loop() const noexcept { return m_config.loop; }
+    inline bool loop() const noexcept
+    {
+        return m_config.loop;
+    }
 
     inline void set_image_rotation(float degrees) noexcept
     {
@@ -89,8 +96,14 @@ public:
         return m_config.image_rotation;
     }
 
-    inline ImageEffectsOpts &image_effects() noexcept { return m_config.image_effects; }
-    inline const ImageEffectsOpts &image_effects() const noexcept { return m_config.image_effects; }
+    inline ImageEffectsOpts &image_effects() noexcept
+    {
+        return m_config.image_effects;
+    }
+    inline const ImageEffectsOpts &image_effects() const noexcept
+    {
+        return m_config.image_effects;
+    }
     void set_effect(const char *name, float value) noexcept;
     void set_effect_invert(bool value) noexcept;
 
@@ -156,14 +169,17 @@ private:
     void init_lua_sonopix() noexcept;
     void init_lua_sonopix_opts() noexcept;
     void collect_traversal_pixels() noexcept;
-    void apply_audio_process_func(std::vector<float> &audio_data, float sample_rate) noexcept;
+    void apply_audio_process_func(std::vector<float> &audio_data,
+                                  float sample_rate) noexcept;
 
     /* Events */
     void handle_events() noexcept;
     void handle_resize_event(const sf::Event::Resized *e) noexcept;
     void handle_keypress_event(const sf::Event::KeyPressed *e) noexcept;
-    void handle_mouse_press_event(const sf::Event::MouseButtonPressed *e) noexcept;
-    void handle_mouse_release_event(const sf::Event::MouseButtonReleased *e) noexcept;
+    void
+    handle_mouse_press_event(const sf::Event::MouseButtonPressed *e) noexcept;
+    void handle_mouse_release_event(
+        const sf::Event::MouseButtonReleased *e) noexcept;
     void handle_mouse_move_event(const sf::Event::MouseMoved *e) noexcept;
     void seek_waveform(float mx) noexcept;
     void seek_relative(float seconds) noexcept;
@@ -185,9 +201,19 @@ private:
     void update_oscilloscope() noexcept;
     void update_playback_bar() noexcept;
     void create_window() noexcept;
+    void start_script_watcher(const std::string &path) noexcept;
+    void stop_script_watcher() noexcept;
+    void fire_event(const std::string &name) noexcept;
+    void clear_event_listeners() noexcept;
 
     sf::Shader m_image_shader;
-    bool m_shader_active = false;
+    bool m_shader_active     = false;
+    bool m_hot_reload_script = false;
+    std::string m_script_file;
+    std::thread m_watcher_thread;
+    std::atomic<bool> m_script_changed{false};
+    std::atomic<bool> m_watcher_stop{false};
+    int m_inotify_fd = -1;
     std::unique_ptr<AudioEngine> m_audio_engine;
     std::unique_ptr<sonify::SonifyEngine> m_sonifier;
     std::string m_window_title = "Sonopix";
@@ -215,5 +241,7 @@ private:
     std::vector<std::pair<int, int>> m_traversal_pixels;
     bool m_using_custom_traversal = false;
     bool m_seeking                = false;
+    bool m_was_playing            = false;
+    std::unordered_map<std::string, std::vector<int>> m_event_listeners;
     lua_State *m_L                = nullptr;
 };

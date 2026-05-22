@@ -4,6 +4,7 @@
 
 ### Features
 
+- Add webp image support
 - Show image
 - Command line arguments
 - Sonification Engine
@@ -17,24 +18,36 @@
     - ZIGZAG H
     - ZIGZAG V
 - Image Resizing
-
-#### Window
-
-- `sonopix.opts.antialiasing_level` — sets MSAA sample count (0 = off, 2/4/8 typical); applied at window creation so it takes effect without recreating the window
+- **`--hot-reload` flag** — re-executes the Lua script automatically whenever the file is saved; uses inotify `IN_CLOSE_WRITE` on a background thread (zero CPU when idle); errors print to stderr without crashing; enable alongside `--script`
+- **Waveform strip** — RMS peak waveform drawn just above the oscilloscope; spans the width of the image; built once after sonification completes; background, bar color, height, and visibility all configurable via `sonopix.opts.waveform`
+- **Oscilloscope strip** — real-time rolling signal view between the waveform and progress bar; shows a configurable sample window centered on the playback position; updated every frame; configurable via `sonopix.opts.oscilloscope` (`height`, `color`, `window_samples`, `visible`)
+- **Image layout** — image is now flush against the top of the window; bottom area reserved for waveform + oscilloscope + progress bar; image scales to fill full window width
+- **Loop playback** — `sonopix.opts.loop = true` or press `L` to toggle; delegates to `sf::Sound::setLooping`
+- **Proportional UI heights** — `waveform.height`, `oscilloscope.height`, and `progress_bar.height` are now fractions of the window height (e.g. `0.10` = 10%) instead of fixed pixel values; all strips scale correctly on window resize
+- **Waveform seek** — clicking or dragging on the waveform strip seeks the audio; drag is clamped to `[0, 1]` so scrubbing past either edge is safe; works in playing and paused states; plays a short (~46 ms) audio preview at each seek position so dragging across the waveform gives live scrubbing feedback
+- **`"rotate-cw"` and `"rotate-ccw"` directions** — radar-sweep traversal; a radial line rotates from 12 o'clock (clockwise or counter-clockwise); brightness per strip is the average along that ray; cursor is a clock-hand rectangle pivoted at the image centre
+- **Progress bar** — mpv-style 4 px bar pinned to the bottom of the window; dark semi-transparent background track with a bright fill tracking playback position; toggled via `sonopix.opts.show_progress_bar` (default: `true`)
+- **Audio export** — `-o / --output FILE` sonifies automatically then saves to WAV or OGG and closes; defaults to `.wav` if no extension given; prints an error and exits if no `--input` was provided
 
 #### Lua scripting
-
-- `sonopix.opts.sonify_func` — custom sonification function; called per sample with a reused `SonifyContext` table (`brightness`, `x`, `y`, `width`, `height`, `fmin`, `fmax`, `scale`, `sample_rate`, `sample_index`, `frame_index`) and must return a float in `[-1, 1]`
 
 - Add lua scripting support
     - `sonopix` table
     - `sonopix.opts` table
+- **`sonopix.save_audio(filepath)`** Lua binding — saves audio from a script; blocks until sonification completes if still running
+- **`sonopix.is_paused()` / `sonopix.is_stopped()`** Lua bindings added to match the existing `is_playing()`
+- **`sonopix.opts.amplitude`** — master gain applied to the audio buffer after sonification (default: `1.0`, must be `>= 0`); captured at `sonify()` call time
+- **`sonopix.opts.traversal_func`** — custom pixel-level traversal; called **once per strip** by C++ with `(strip_index, total, width, height)`; return `(x, y)` for that strip — no table allocation; a `cursor_width × cursor_width` point cursor tracks the current pixel during playback
+- **`sonopix.opts.waveform`** sub-table — `visible`, `height`, `color`; supports both inline and table-form assignment
+- **`sonopix.opts.oscilloscope`** sub-table — `visible`, `height`, `window_samples`, `color`; supports both inline and table-form assignment
+- **`sonopix.opts.progress_bar`** sub-table — `visible`, `height`, `color`; replaces the old boolean-only `show_progress_bar` flag (which is kept for backwards compatibility)
+- `sonopix.opts.antialiasing_level` — sets MSAA sample count (0 = off, 2/4/8 typical); applied at window creation so it takes effect without recreating the window
+- `sonopix.opts.sonify_func` — custom sonification function; called per sample with a reused `SonifyContext` table (`brightness`, `x`, `y`, `width`, `height`, `fmin`, `fmax`, `scale`, `sample_rate`, `sample_index`, `frame_index`) and must return a float in `[-1, 1]`
 - `sonopix.opts.frequency` sub-table with `fmin`, `fmax`, and `scale` fields
     - Supports both inline (`sonopix.opts.frequency.fmin = 200`) and table form (`sonopix.opts.frequency = { fmin = 200, fmax = 8000, scale = "log" }`)
 - `sonopix.opts.cursor` sub-table with `width` and `color` fields
     - Supports both inline (`sonopix.opts.cursor.width = 3`) and table form (`sonopix.opts.cursor = { width = 3, color = "#FF0000" }`)
 - `sonopix.opts = { ... }` table assignment now works for all opts including nested `cursor` and `frequency`
-
 - **Image rotation** — `sonopix.opts.image_rotation` sets the display angle in degrees (default `0`); image pivots around its center; scale is computed from the axis-aligned bounding box of the rotated image so edges never clip; cursor tracks pixel positions on the rotated image using the sprite transform
 - **`sonopix.opts.sonify_func` is now per-strip** — called once per strip (not per sample); receives `ctx` with `n_samples`; must return a table of `n_samples` floats; 100–1000× fewer Lua/C++ boundary crossings; `strip_t` removed (compute as `(i-1)/ctx.n_samples` if needed)
 - **`sonopix.pixel_brightness(x, y)`** — returns brightness `[0, 1]` of the pixel at `(x, y)` in the loaded image; intended for use in `traversal_func` setup to build data-driven orderings (e.g. brightest-first sort)
@@ -42,58 +55,18 @@
 - **`sonopix.opts.audio_effects`** sub-table — post-sonification audio DSP: `gain` (master multiplier), `delay` (`{time, feedback, mix}`), `reverb` (`{room_size, damping, mix}` — 4-comb Schroeder), `distortion` (`{drive, mix}` — tanh soft clip); effects are applied in the sonify thread in distortion → reverb → delay order; `mix = 0` skips each effect; implemented in `src/Effects.cpp`
 - **`sonopix.opts.image_effects`** sub-table — real-time GPU image effects via GLSL fragment shader: `grayscale`, `brightness`, `saturation`, `contrast`, `hue`, `blur` (Gaussian), `sharpen` (Laplacian), `threshold` (luminance cutoff), `invert`; supports both inline (`sonopix.opts.image_effects.blur = 2`) and table form; gracefully disabled if shaders are unavailable; shader source lives in `src/shaders/image_effects.cpp`
 
-### Features (post-0.1)
-
-- **Waveform strip** — RMS peak waveform drawn just above the oscilloscope; spans the width of the image; built once after sonification completes; background, bar color, height, and visibility all configurable via `sonopix.opts.waveform`
-- **Oscilloscope strip** — real-time rolling signal view between the waveform and progress bar; shows a configurable sample window centered on the playback position; updated every frame; configurable via `sonopix.opts.oscilloscope` (`height`, `color`, `window_samples`, `visible`)
-- **`sonopix.opts.waveform`** sub-table — `visible`, `height`, `color`; supports both inline and table-form assignment
-- **`sonopix.opts.oscilloscope`** sub-table — `visible`, `height`, `window_samples`, `color`; supports both inline and table-form assignment
-- **`sonopix.opts.progress_bar`** sub-table — `visible`, `height`, `color`; replaces the old boolean-only `show_progress_bar` flag (which is kept for backwards compatibility)
-- **Image layout** — image is now flush against the top of the window; bottom area reserved for waveform + oscilloscope + progress bar; image scales to fill full window width
-- **Loop playback** — `sonopix.opts.loop = true` or press `L` to toggle; delegates to `sf::Sound::setLooping`
-- **Waveform seek** — clicking or dragging on the waveform strip seeks the audio; drag is clamped to `[0, 1]` so scrubbing past either edge is safe; works in playing and paused states; plays a short (~46 ms) audio preview at each seek position so dragging across the waveform gives live scrubbing feedback
-- **`"rotate-cw"` and `"rotate-ccw"` directions** — radar-sweep traversal; a radial line rotates from 12 o'clock (clockwise or counter-clockwise); brightness per strip is the average along that ray; cursor is a clock-hand rectangle pivoted at the image centre
-- ~~`"zigzag-h"` / `"zigzag-v"`~~ — removed
-
-- **Progress bar** — mpv-style 4 px bar pinned to the bottom of the window; dark semi-transparent background track with a bright fill tracking playback position; toggled via `sonopix.opts.show_progress_bar` (default: `true`)
-- **`sonopix.opts.amplitude`** — master gain applied to the audio buffer after sonification (default: `1.0`, must be `>= 0`); captured at `sonify()` call time
-- **`sonopix.opts.traversal_func`** — custom pixel-level traversal; called **once per strip** by C++ with `(strip_index, total, width, height)`; return `(x, y)` for that strip — no table allocation; a `cursor_width × cursor_width` point cursor tracks the current pixel during playback
-- **Audio export** — `-o / --output FILE` sonifies automatically then saves to WAV or OGG and closes; defaults to `.wav` if no extension given; prints an error and exits if no `--input` was provided
-- **`sonopix.save_audio(filepath)`** Lua binding — saves audio from a script; blocks until sonification completes if still running
-- **`sonopix.is_paused()` / `sonopix.is_stopped()`** Lua bindings added to match the existing `is_playing()`
-
-### Bug Fixes (post-0.1)
+### Bug Fixes
 
 - Fix crash (`std::length_error` in `vector::resize`) when a Lua script calls `open_file` before the window is created — `open_file` now falls back to `m_window_size` instead of `m_window.getSize()` when the window is not yet open
 - Fix negative scale in `rescale_recenter_image` when reserved bottom strip height exceeds window height — `available_h` and `scale` are now clamped to `≥ 0`
 - Fix `zigzag-h` / `zigzag-v` still listed in `--direction` CLI choices after removal
 - Fix keyboard scrubbing (`←` / `→`) using fixed seconds — now seeks by 2 % / 10 % of total duration so the step is appropriate regardless of audio length
-
 - Fix `sonify()` copying audio buffer — now uses `take_audio()` to move instead
 - Fix `set_cursor_width` not updating the live cursor shape
 - Fix `~` home directory expansion in `load_image` — guarded on `[0] == '~'` and passed `fixed_filename` to `loadFromFile`
 - Fix `sonopix.pause()` missing from Lua bindings
 - Fix `toggle_pause` using stale `m_paused` flag — now reads `is_playing()` directly from the audio engine
 - Fix Lua `sonify_func` errors silently swallowed — failures now print to stderr
-
-### Refactor (post-0.1)
-
-- `MainWindow` config fields consolidated into a `Config` struct (`CursorOpts cursor`, `ProgressBarOpts progress_bar`, `amplitude`, `direction`, `window` settings, `verbose`) — eliminates scattered flat members; public accessor signatures unchanged
-
-- `m_sonifier` and `m_audio_engine` converted from raw pointers to `std::unique_ptr`; destructor is `= default`
-- Removed redundant `m_paused` member — audio engine state is the single source of truth
-- `sonify()` now runs on a background thread via `std::async`; window title shows `[sonifying...]` while in progress
-
-### Refactor
-
-- `SonifyEngine`: extracted `pixel_brightness`, `column_brightness`, `row_brightness`, and `emit_strip` helpers — eliminates the four near-identical traversal functions
-- `SonifyEngine`: traversal methods (`sonify_left_to_right`, etc.) moved to `private`
-- `SonifyEngine`: removed redundant `sine_frequency()` sonify function
-- `AudioEngine`: removed `sample_rate` constructor parameter and `set_sample_rate()` — rate is now supplied once via `set_data()`, eliminating the duplicated field between the two engines
-- Cursor replaced with a `std::unique_ptr<sf::Shape>` — allocates `sf::RectangleShape` for linear directions and `sf::CircleShape` for circular directions
-
-### Bug Fixes
-
 - Fix `sonopix.opts` metatable not being attached (global was already popped when opts table was set)
 - Fix `sonopix.opts = { ... }` not applying options — `__newindex` was never triggered because `"opts"` existed as a raw key in the `sonopix` table
 - Fix setting `direction` via Lua not updating cursor orientation — `MainWindow::m_direction` was not updated, only the sonifier's copy

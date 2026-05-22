@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SFML REQUIRED sfml-all)
 pkg_check_modules(Lua REQUIRED lua>5.4)
+pkg_check_modules(WebP REQUIRED libwebp)
 
 add_executable(${PROJECT_NAME}
     src/main.cpp
@@ -30,10 +31,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${SFML_INCLUDE_DIRS}
     ${Lua_INCLUDE_DIRS}
+    ${WebP_INCLUDE_DIRS}
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ${SFML_LIBRARIES}
     ${Lua_LIBRARIES}
+    ${WebP_LIBRARIES}
 )
 
