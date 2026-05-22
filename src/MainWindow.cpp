@@ -277,6 +277,7 @@ MainWindow::seek_waveform(float mx) noexcept
         progress * static_cast<float>(total));
 
     m_audio_engine->seek_to_sample(target);
+    m_audio_engine->play_sample_at(target);
     m_last_sample_index = target;
 }
 

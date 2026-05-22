@@ -51,7 +51,7 @@
 - **`sonopix.opts.progress_bar`** sub-table — `visible`, `height`, `color`; replaces the old boolean-only `show_progress_bar` flag (which is kept for backwards compatibility)
 - **Image layout** — image is now flush against the top of the window; bottom area reserved for waveform + oscilloscope + progress bar; image scales to fill full window width
 - **Loop playback** — `sonopix.opts.loop = true` or press `L` to toggle; delegates to `sf::Sound::setLooping`
-- **Waveform seek** — clicking or dragging on the waveform strip seeks the audio; drag is clamped to `[0, 1]` so scrubbing past either edge is safe; works in playing and paused states
+- **Waveform seek** — clicking or dragging on the waveform strip seeks the audio; drag is clamped to `[0, 1]` so scrubbing past either edge is safe; works in playing and paused states; plays a short (~46 ms) audio preview at each seek position so dragging across the waveform gives live scrubbing feedback
 - **`"rotate-cw"` and `"rotate-ccw"` directions** — radar-sweep traversal; a radial line rotates from 12 o'clock (clockwise or counter-clockwise); brightness per strip is the average along that ray; cursor is a clock-hand rectangle pivoted at the image centre
 - ~~`"zigzag-h"` / `"zigzag-v"`~~ — removed
 

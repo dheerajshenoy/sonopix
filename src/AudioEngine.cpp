@@ -5,7 +5,7 @@
 #include "utils.hpp"
 
 AudioEngine::AudioEngine()
-    : m_sound(m_sound_buffer)
+    : m_sound(m_sound_buffer), m_scrub_sound(m_scrub_buffer)
 {
 }
 
@@ -60,6 +60,27 @@ AudioEngine::save(const std::string &filename) const noexcept
         return false;
     }
     return true;
+}
+
+void
+AudioEngine::play_sample_at(std::size_t sample) noexcept
+{
+    constexpr std::size_t WINDOW = 2048;
+    const std::size_t total      = m_data.size();
+    if (total == 0)
+        return;
+
+    const std::size_t start = std::min(sample, total - 1);
+    const std::size_t end   = std::min(start + WINDOW, total);
+
+    std::vector<sf::SoundChannel> channelMap = {sf::SoundChannel::Mono};
+    if (!m_scrub_buffer.loadFromSamples(m_data.data() + start, end - start,
+                                        m_channel_count, m_sample_rate,
+                                        channelMap))
+        return;
+
+    m_scrub_sound = sf::Sound(m_scrub_buffer);
+    m_scrub_sound.play();
 }
 
 void

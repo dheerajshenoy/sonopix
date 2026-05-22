@@ -62,6 +62,7 @@ public:
     void stop() noexcept;
     void pause() noexcept;
     void seek_to_sample(std::size_t sample) noexcept;
+    void play_sample_at(std::size_t sample) noexcept;
 
     inline void set_looping(bool loop) noexcept { m_sound.setLooping(loop); }
     inline bool is_looping() const noexcept     { return m_sound.isLooping(); }
@@ -74,6 +75,8 @@ private:
     std::vector<std::int16_t> m_data;
     sf::SoundBuffer m_sound_buffer;
     sf::Sound m_sound;
+    sf::SoundBuffer m_scrub_buffer;
+    sf::Sound m_scrub_sound;
     float m_sample_rate = 44100.0f;
     int m_channel_count = 1;
 };
