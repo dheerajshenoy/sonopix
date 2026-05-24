@@ -38,6 +38,8 @@ end
 -- Additive synthesis: four harmonics with a falling amplitude series
 -- (1, 1/2, 1/3, 1/4) — warm, organ-like tone that tracks image brightness.
 local phases = { 0.0, 0.0, 0.0, 0.0 }
+
+---@param ctx SonifyContext
 local function sonify(ctx)
     local f = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
     local samples = {}
@@ -58,13 +60,13 @@ s.opts = {
     sonify_func    = sonify,
     -- 5e-6 s/pixel ≈ 1 sample/pixel at 44100 Hz — keeps audio duration sane.
     -- spu       = 5e-6,
-    spu=1e-3,
-    frequency = { min = 20, max = 20000, scale = "exponential" },
+    spu=1e-2,
+    frequency = { min = 50, max = 5000, scale = "exponential" },
     cursor    = { width = 3, color = "#FF5000FF" },
     waveform        = { height = 0.12, color = "#FFFFFFC8" },
     oscilloscope    = { height = 0.10, window_samples = 2048, color = "#00FFB4DC" },
     progress_bar    = { height = 0.01, color = "#FF8800FF" },
-    antialiasing_level = 16,
+    antialiasing_level = 12,
 }
 
 -- local random_file = random_file_from_dir("/home/neo/Gits/wallpapers/")

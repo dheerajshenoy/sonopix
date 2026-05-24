@@ -265,6 +265,30 @@ MainWindow::init_lua_sonopix() noexcept
     }, 1);
     lua_setfield(m_L, -2, "pixel_brightness");
 
+    // sonopix.set_roi(x, y, w, h) -- restrict sonification to a sub-region
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        const int x = static_cast<int>(luaL_checkinteger(L, 1));
+        const int y = static_cast<int>(luaL_checkinteger(L, 2));
+        const int rw = static_cast<int>(luaL_checkinteger(L, 3));
+        const int rh = static_cast<int>(luaL_checkinteger(L, 4));
+        w->m_sonifier->set_roi(x, y, rw, rh);
+        return 0;
+    }, 1);
+    lua_setfield(m_L, -2, "set_roi");
+
+    // sonopix.clear_roi() -- remove any active ROI
+    lua_pushlightuserdata(m_L, this);
+    lua_pushcclosure(m_L, [](lua_State *L) -> int
+    {
+        static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)))
+            ->m_sonifier->clear_roi();
+        return 0;
+    }, 1);
+    lua_setfield(m_L, -2, "clear_roi");
+
     // Set the sonopix table in the global namespace
     lua_setglobal(m_L, "sonopix");
 }
@@ -431,6 +455,18 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
             lua_setfield(Lc, -2, "sample_rate");
             lua_pushnumber(Lc, ctx.brightness);
             lua_setfield(Lc, -2, "brightness");
+            lua_pushnumber(Lc, ctx.r);
+            lua_setfield(Lc, -2, "r");
+            lua_pushnumber(Lc, ctx.g);
+            lua_setfield(Lc, -2, "g");
+            lua_pushnumber(Lc, ctx.b);
+            lua_setfield(Lc, -2, "b");
+            lua_pushnumber(Lc, ctx.h);
+            lua_setfield(Lc, -2, "h");
+            lua_pushnumber(Lc, ctx.s);
+            lua_setfield(Lc, -2, "s");
+            lua_pushnumber(Lc, ctx.v);
+            lua_setfield(Lc, -2, "v");
             lua_pushinteger(Lc, ctx.x);
             lua_setfield(Lc, -2, "x");
             lua_pushinteger(Lc, ctx.y);
