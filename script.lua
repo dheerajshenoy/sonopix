@@ -87,10 +87,16 @@ end
 s.opts = {
     -- traversal_func = diagonal,
     -- sonify_func    = sonify_chromatic,
-    direction = "circle-outwards",
+    amplitude = 0.5,
+    fps = 144,
+    loop = true,
+    direction = "left-to-right",
     channel_count  = 2,
     spu            = 1e-3,
-    frequency      = { min = 1000, max = 10000, scale = "linear" },
+    image_effects = {
+        invert = true,
+    },
+    frequency      = { min = 99, max = 100, scale = "linear" },
     cursor         = { width = 3, color = "#FF5000FF" },
     waveform       = { height = 0.12, color = "#FFFFFFC8" },
     oscilloscope   = { height = 0.10, window_samples = 2048, color = "#00FFB4DC" },
@@ -102,6 +108,6 @@ s.on("sonify_complete", function()
     s.play()
 end)
 
-if s.open_file("/home/neo/Downloads/gallileo-europa-moon-image-two-column.jpg") then
+if s.open_file("/home/neo/Downloads/vbar.png") then
     s.sonify()
 end

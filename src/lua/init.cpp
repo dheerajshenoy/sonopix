@@ -1,6 +1,7 @@
 #include "MainWindow.hpp"
 #include "utils.hpp"
 
+#include <cmath>
 #include <cstring>
 
 void
@@ -359,6 +360,16 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         return 0;
     }
 
+    // sonopix.opts.fps
+    if (strcmp(key, "fps") == 0)
+    {
+        int fps = static_cast<int>(luaL_checkinteger(L, 3));
+        if (fps < 0)
+            return luaL_error(L, "fps must be >= 0");
+        window->set_fps_limit(static_cast<unsigned int>(fps));
+        return 0;
+    }
+
     // sonopix.opts.antialiasing_level
     if (strcmp(key, "antialiasing_level") == 0)
     {
@@ -366,6 +377,16 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         if (level < 0)
             return luaL_error(L, "antialiasing_level must be >= 0");
         window->set_antialiasing_level(static_cast<unsigned int>(level));
+        return 0;
+    }
+
+    // sonopix.opts.volume
+    if (strcmp(key, "volume") == 0)
+    {
+        float vol = static_cast<float>(luaL_checknumber(L, 3));
+        if (vol < 0.0f || vol > 100.0f)
+            return luaL_error(L, "volume must be in [0, 100]");
+        window->audio_engine()->set_volume(vol);
         return 0;
     }
 
@@ -1251,7 +1272,7 @@ MainWindow::init_lua_sonopix_opts() noexcept
         if (!key) { lua_pushnil(L); return 1; }
         MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
         const auto &e = w->m_config.image_effects;
-        if (strcmp(key, "grayscale")  == 0) { lua_pushnumber(L, e.grayscale);  return 1; }
+        if (strcmp(key, "grayscale")  == 0) { lua_pushboolean(L, e.grayscale ? 1 : 0); return 1; }
         if (strcmp(key, "brightness") == 0) { lua_pushnumber(L, e.brightness); return 1; }
         if (strcmp(key, "saturation") == 0) { lua_pushnumber(L, e.saturation); return 1; }
         if (strcmp(key, "contrast")   == 0) { lua_pushnumber(L, e.contrast);   return 1; }
@@ -1271,6 +1292,12 @@ MainWindow::init_lua_sonopix_opts() noexcept
         const char *key = lua_tostring(L, 2);
         if (!key) return 0;
         MainWindow *w = static_cast<MainWindow *>(lua_touserdata(L, lua_upvalueindex(1)));
+        if (strcmp(key, "grayscale") == 0)
+        {
+            luaL_checktype(L, 3, LUA_TBOOLEAN);
+            w->set_effect_grayscale(lua_toboolean(L, 3) != 0);
+            return 0;
+        }
         if (strcmp(key, "invert") == 0)
         {
             luaL_checktype(L, 3, LUA_TBOOLEAN);
@@ -1400,6 +1427,13 @@ MainWindow::init_lua_sonopix_opts() noexcept
             return 1;
         }
 
+        // sonopix.opts.fps
+        if (strcmp(key, "fps") == 0)
+        {
+            lua_pushinteger(L, static_cast<lua_Integer>(window->fps_limit()));
+            return 1;
+        }
+
         // sonopix.opts.antialiasing_level
         if (strcmp(key, "antialiasing_level") == 0)
         {
@@ -1468,6 +1502,14 @@ MainWindow::init_lua_sonopix_opts() noexcept
         if (strcmp(key, "traversal_func") == 0)
         {
             lua_getfield(L, LUA_REGISTRYINDEX, "sonopix_traversal_func");
+            return 1;
+        }
+
+        // sonopix.opts.volume
+        if (strcmp(key, "volume") == 0)
+        {
+            lua_pushnumber(L, static_cast<lua_Number>(
+                               window->audio_engine()->volume()));
             return 1;
         }
 

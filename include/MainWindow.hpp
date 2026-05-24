@@ -106,6 +106,7 @@ public:
     }
     void set_effect(const char *name, float value) noexcept;
     void set_effect_invert(bool value) noexcept;
+    void set_effect_grayscale(bool value) noexcept;
 
     inline void set_antialiasing_level(unsigned int level) noexcept
     {
@@ -145,6 +146,18 @@ public:
         m_window_size = {width, height};
         if (m_window.isOpen())
             m_window.setSize(m_window_size);
+    }
+
+    inline void set_fps_limit(unsigned int fps) noexcept
+    {
+        m_config.fps_limit = fps;
+        if (m_window.isOpen())
+            m_window.setFramerateLimit(fps);
+    }
+
+    inline unsigned int fps_limit() const noexcept
+    {
+        return m_config.fps_limit;
     }
 
     void main_loop();
@@ -191,6 +204,8 @@ private:
 
     void init_image_shader() noexcept;
     void sync_shader() noexcept;
+    void snapshot_shaded_image() noexcept;
+    void reset_script_state() noexcept;
     void init_cursor(float scale                 = 1.0f,
                      sf::Vector2<float> position = {}) noexcept;
     void init_playback_bar() noexcept;

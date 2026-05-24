@@ -49,7 +49,7 @@ sonopix = sonopix or {}
 ---@field color? string Fill color as "#RRGGBB" or "#RRGGBBAA" (default: "#FFFFFFC8")
 
 ---@class ImageEffectsOpts
----@field grayscale?  number Desaturate toward greyscale; 0 = off, 1 = full greyscale (default: 0)
+---@field grayscale?  boolean Convert to greyscale (default: false)
 ---@field brightness? number Additive brightness shift in [-1, 1] (default: 0)
 ---@field saturation? number Colour saturation multiplier; 0 = greyscale, 1 = original, >1 = vivid (default: 1)
 ---@field contrast?   number Contrast multiplier around mid-grey; 0 = flat, 1 = original (default: 1)
@@ -76,11 +76,13 @@ sonopix = sonopix or {}
 ---@field progress_bar? ProgressBarOpts Playback progress bar options
 ---@field sample_rate? number Sample rate in Hz (must be > 0)
 ---@field channel_count? integer Number of audio channels (must be > 0)
----@field amplitude? number Master gain applied to the audio buffer after sonification (default: 1.0, must be >= 0)
+---@field volume? number Master playback volume in [0, 100] (default: 100); takes effect immediately without re-sonifying
+---@field amplitude? number Master gain baked into the audio buffer at sonify time (default: 1.0, must be >= 0)
 ---@field image_effects? ImageEffectsOpts Real-time image effects applied via GLSL shader
 ---@field audio_effects? AudioEffectsOpts Real-time audio effects applied in the audio callback (not yet implemented)
 ---@field loop? boolean Loop playback when the audio reaches the end (default: false)
 ---@field image_rotation? number Rotation of the displayed image in degrees (default: 0); cursor tracks the rotated image
+---@field fps? integer Framerate limit (0 = unlimited); uses sleep-based throttling, works on Wayland
 ---@field antialiasing_level? integer MSAA sample count (0 = off, 2/4/8 typical); applied at window creation
 ---@field window_title? string Window title string
 ---@field window_size? { width: integer, height: integer } Window dimensions in pixels

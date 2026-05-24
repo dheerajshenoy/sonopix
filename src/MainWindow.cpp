@@ -40,6 +40,7 @@ MainWindow::create_window() noexcept
     m_window = sf::RenderWindow(sf::VideoMode(m_window_size), m_window_title,
                                 sf::Style::Default, sf::State::Windowed,
                                 m_config.window);
+    m_window.setFramerateLimit(m_config.fps_limit);
 }
 
 void
@@ -415,6 +416,10 @@ MainWindow::sonify()
     m_audio_engine->stop();
     m_last_sample_index = 0;
     m_window.setTitle(m_window_title + " [sonifying...]");
+
+    // Bake current image effects into the sonifier's pixel buffer so that
+    // grayscale, brightness, contrast, etc. are reflected in the audio.
+    snapshot_shaded_image();
 
     collect_traversal_pixels(); // runs on main thread (Lua not thread-safe);
                                 // fills m_traversal_pixels and
@@ -929,7 +934,7 @@ MainWindow::sync_shader() noexcept
                                                             1.f / m_tex_size.y}
                                              : sf::Vector2f{1.f, 1.f};
     m_image_shader.setUniform("u_texel_size", ts);
-    m_image_shader.setUniform("u_grayscale", e.grayscale);
+    m_image_shader.setUniform("u_grayscale", e.grayscale ? 1.f : 0.f);
     m_image_shader.setUniform("u_brightness", e.brightness);
     m_image_shader.setUniform("u_saturation", e.saturation);
     m_image_shader.setUniform("u_contrast", e.contrast);
@@ -940,13 +945,83 @@ MainWindow::sync_shader() noexcept
     m_image_shader.setUniform("u_invert", e.invert ? 1 : 0);
 }
 
+// Render the image through the current shader into an offscreen texture, read
+// the pixels back to CPU, and update the sonifier's raw image so that image
+// effects are reflected in the next sonification.
+void
+MainWindow::snapshot_shaded_image() noexcept
+{
+    const int w = static_cast<int>(m_tex_size.x);
+    const int h = static_cast<int>(m_tex_size.y);
+    if (w <= 0 || h <= 0 || m_tex.getSize().x == 0)
+        return;
+
+    sf::RenderTexture rt;
+    if (!rt.resize({static_cast<unsigned>(w), static_cast<unsigned>(h)}))
+        return;
+
+    rt.clear(sf::Color::Transparent);
+
+    // Render at native 1:1 size so pixel indices match the sonifier's grid.
+    sf::Sprite tmp(m_tex);
+    if (m_shader_active)
+    {
+        sf::RenderStates states;
+        states.shader = &m_image_shader;
+        rt.draw(tmp, states);
+    }
+    else
+        rt.draw(tmp);
+
+    rt.display();
+
+    const sf::Image shaded    = rt.getTexture().copyToImage();
+    const std::uint8_t *data  = shaded.getPixelsPtr();
+    if (!data)
+        return;
+
+    constexpr int channels = 4;
+    auto img_data = sonify::normalize_u8_data(data, w * h * channels);
+    m_sonifier->set_raw_image(w, h, channels, w * 4, std::move(img_data));
+}
+
+// Reset all script-controlled state to defaults before a hot-reload so that
+// removing a line from the script is equivalent to reverting that setting.
+void
+MainWindow::reset_script_state() noexcept
+{
+    // Reset config structs to their default-constructed values.
+    m_config.image_effects  = ImageEffectsOpts{};
+    m_config.audio_effects  = AudioEffectsOpts{};
+    m_config.cursor         = CursorOpts{};
+    m_config.progress_bar   = ProgressBarOpts{};
+    m_config.waveform       = WaveformOpts{};
+    m_config.oscilloscope   = OscilloscopeOpts{};
+    m_config.amplitude      = 1.0f;
+    m_config.direction      = sonify::Direction::LEFT_TO_RIGHT;
+    m_config.image_rotation = 0.f;
+    m_config.loop           = false;
+    m_config.fps_limit      = 60;
+
+    // Propagate to subsystems.
+    m_sonifier->set_sonify_func(sonify::sonify_functions::sine());
+    m_sonifier->set_direction(sonify::Direction::LEFT_TO_RIGHT);
+    m_sonifier->set_channel_count(1);
+    m_audio_engine->set_channel_count(1);
+    m_audio_engine->set_looping(false);
+    m_audio_engine->set_volume(100.f);
+    m_sprite.setRotation(sf::degrees(0.f));
+    m_window.setFramerateLimit(m_config.fps_limit);
+
+    if (m_shader_active)
+        sync_shader();
+}
+
 void
 MainWindow::set_effect(const char *name, float value) noexcept
 {
     auto &e = m_config.image_effects;
-    if (strcmp(name, "grayscale") == 0)
-        e.grayscale = value;
-    else if (strcmp(name, "brightness") == 0)
+    if (strcmp(name, "brightness") == 0)
         e.brightness = value;
     else if (strcmp(name, "saturation") == 0)
         e.saturation = value;
@@ -968,6 +1043,14 @@ void
 MainWindow::set_effect_invert(bool value) noexcept
 {
     m_config.image_effects.invert = value;
+    if (m_shader_active)
+        sync_shader();
+}
+
+void
+MainWindow::set_effect_grayscale(bool value) noexcept
+{
+    m_config.image_effects.grayscale = value;
     if (m_shader_active)
         sync_shader();
 }
@@ -1049,6 +1132,7 @@ MainWindow::update() noexcept
             lua_close(m_L);
             m_L = nullptr;
         }
+        reset_script_state();
         try
         {
             init_lua(m_script_file);

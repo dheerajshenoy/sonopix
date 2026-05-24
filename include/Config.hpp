@@ -35,7 +35,7 @@ struct OscilloscopeOpts
 
 struct ImageEffectsOpts
 {
-    float grayscale  = 0.f;   // 0 = off, 1 = full grayscale
+    bool  grayscale  = false;
     float brightness = 0.f;   // -1 to 1 additive shift
     float saturation = 1.f;   // 0 = greyscale, 1 = original, >1 = vivid
     float contrast   = 1.f;   // 0 = flat grey, 1 = original, >1 = high contrast
@@ -78,4 +78,5 @@ struct Config
     float image_rotation = 0.f;
     bool loop    = false;
     bool verbose = false;
+    unsigned int fps_limit = 60;
 };

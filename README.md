@@ -110,14 +110,15 @@ end
 | `frequency.scale` | string | `"linear"`, `"log"`, or `"exponential"` |
 | `cursor.width` | number | Cursor width in pixels |
 | `cursor.color` | string | Cursor color as `"#RRGGBB"` or `"#RRGGBBAA"` |
-| `amplitude` | number | Master gain applied after sonification (default: `1.0`) |
+| `volume` | number | Master playback volume `[0, 100]` (default: `100`); takes effect immediately without re-sonifying |
+| `amplitude` | number | Master gain baked into the audio buffer at sonify time (default: `1.0`) |
 | `loop` | boolean | Loop playback when audio ends (default: `false`); also toggled with `L` |
 | `image_rotation` | number | Rotation of the displayed image in degrees (default: `0`); cursor tracks the rotated image |
 | `audio_effects.gain` | number | Master gain multiplier applied after sonification (default: `1.0`) |
 | `audio_effects.delay` | table | `{ time, feedback, mix }` — delay line; `mix = 0` disables |
 | `audio_effects.reverb` | table | `{ room_size, damping, mix }` — Schroeder reverb; `mix = 0` disables |
 | `audio_effects.distortion` | table | `{ drive, mix }` — soft-clip tanh distortion; `mix = 0` disables |
-| `image_effects.grayscale` | number | Desaturate toward greyscale; `0` = off, `1` = full (default: `0`) |
+| `image_effects.grayscale` | boolean | Convert to greyscale (default: `false`) |
 | `image_effects.brightness` | number | Additive brightness shift in `[-1, 1]` (default: `0`) |
 | `image_effects.saturation` | number | Saturation multiplier; `0` = greyscale, `1` = original (default: `1`) |
 | `image_effects.contrast` | number | Contrast multiplier around mid-grey; `1` = original (default: `1`) |
@@ -136,6 +137,7 @@ end
 | `progress_bar.visible` | boolean | Show/hide the progress bar (default: `true`) |
 | `progress_bar.height` | integer | Height of the progress bar in pixels (default: `4`) |
 | `progress_bar.color` | string | Progress bar fill color as `"#RRGGBB"` or `"#RRGGBBAA"` |
+| `fps` | integer | Framerate limit; `0` = unlimited (default: `60`) |
 | `antialiasing_level` | integer | MSAA sample count; applied at window creation |
 | `window_title` | string | Window title string |
 | `window_size` | table | `{ width = W, height = H }` window dimensions |

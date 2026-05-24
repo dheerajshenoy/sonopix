@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Audio.hpp>
+#include <algorithm>
 #include <vector>
 
 class AudioEngine
@@ -66,6 +67,9 @@ public:
 
     inline void set_looping(bool loop) noexcept { m_sound.setLooping(loop); }
     inline bool is_looping() const noexcept     { return m_sound.isLooping(); }
+
+    inline void  set_volume(float v) noexcept { m_sound.setVolume(std::clamp(v, 0.f, 100.f)); }
+    inline float volume() const noexcept      { return m_sound.getVolume(); }
     const std::size_t sample_index() const noexcept;
     void set_data(std::vector<float> &&audio_data, float sample_rate);
     bool save(const std::string &filename) const noexcept;
