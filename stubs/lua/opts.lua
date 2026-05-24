@@ -3,7 +3,13 @@ sonopix = sonopix or {}
 
 ---@class SonifyContext
 ---@field sample_rate number Sample rate in Hz
----@field brightness number Pixel brightness in [0, 1]
+---@field brightness number Pixel luminance in [0, 1]
+---@field r number Red channel in [0, 1]
+---@field g number Green channel in [0, 1]
+---@field b number Blue channel in [0, 1]
+---@field h number Hue in [0, 360]
+---@field s number HSV saturation in [0, 1]
+---@field v number HSV value in [0, 1]
 ---@field x integer Current column (or ring radius for circle modes)
 ---@field y integer Current row
 ---@field width integer Image width in pixels

@@ -1,21 +1,5 @@
 local s = sonopix
 
-local random_file_from_dir = function(dir)
-    local p = io.popen('find "' .. dir .. '" -maxdepth 1 -type f')
-    if not p then return nil end
-    local files = {}
-    for file in p:lines() do
-        files[#files + 1] = file
-    end
-    p:close()
-    if #files == 0 then return nil end
-    return files[math.random(1, #files)]
-end
-
--- Zigzag (serpentine): scans left→right on even rows, right→left on odd rows.
--- Each call returns the (x, y) coordinate of the i-th pixel in that order.
--- Anti-diagonal stripes: sweeps top-right → bottom-left diagonals,
--- starting from the top-left corner. Precomputes the order once per image size.
 local diag_w, diag_h = 0, 0
 local diag_x, diag_y = {}, {}
 
@@ -35,41 +19,73 @@ local function diagonal(i, _, w, h)
     return diag_x[i + 1], diag_y[i + 1]
 end
 
--- Additive synthesis: four harmonics with a falling amplitude series
--- (1, 1/2, 1/3, 1/4) — warm, organ-like tone that tracks image brightness.
-local phases = { 0.0, 0.0, 0.0, 0.0 }
+-- Chromatic stellar sonar: each star fires a decaying FM ping whose timbre
+-- is shaped by the star's color.
+--
+--   Frequency  — brightness-mapped (dim star = low pitch, bright = high)
+--   FM ratio   — hue-driven: red(0°)→1.5 (warm/harmonic),
+--                            blue(240°)→~2.1 (metallic/inharmonic)
+--                smooth sinusoidal interpolation, so the orange-red and
+--                blue stars sound distinctly different.
+--   FM index   — saturation-driven: white/grey stars (s≈0) → near-pure sine;
+--                vivid colored stars → rich sidebands.
+--   Decay      — ~120 ms; FM index shrinks with envelope for natural zing→tail.
+--   Drone      — whisper-quiet bass sine tracking the rolling average, giving
+--                the void of space a faint atmosphere.
+local drone_phase    = 0.0
+local ping_phase     = 0.0
+local ping_mod_phase = 0.0
+local ping_env       = 0.0
+local ping_freq      = 440.0
+local ping_ratio     = 2.1
+local ping_idx_max   = 0.0
+local avg_bright     = 0.05
 
 ---@param ctx SonifyContext
-local function sonify(ctx)
-    local f = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
+local function sonify_chromatic(ctx)
+    avg_bright = avg_bright * 0.97 + ctx.brightness * 0.03
+
+    local excess = ctx.brightness - avg_bright * 1.5
+    if excess > 0.02 then
+        ping_env     = math.min(1.0, ping_env + excess * 4.0)
+        ping_freq    = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
+        -- sin(h * 0.5 deg) rises from 0 at red(0°) to peak near green(180°)
+        -- and lands at ~0.87 at blue(240°) → ratio sweeps 1.5 → 2.2
+        ping_ratio   = 1.5 + 0.7 * math.sin(math.rad(ctx.h * 0.5))
+        -- white stars (s≈0) stay near pure sine; colorful stars get rich FM
+        ping_idx_max = ctx.s * 7.0
+    end
+
+    local drone_freq = ctx.fmin * (ctx.fmax / ctx.fmin) ^ (avg_bright * 0.3)
+    local decay      = math.exp(-1.0 / (ctx.sample_rate * 0.12))
+
     local samples = {}
     for i = 1, ctx.n_samples do
-        local sum = 0.0
-        for k = 1, #phases do
-            phases[k] = phases[k] + 2 * math.pi * f * k / ctx.sample_rate
-            sum = sum + math.sin(phases[k]) / k
-        end
-        samples[i] = ctx.brightness * sum * 0.48  -- ~1/sum(1/k,k=1..4)
+        drone_phase = drone_phase + 2 * math.pi * drone_freq / ctx.sample_rate
+        local drone = 0.06 * math.sin(drone_phase)
+
+        ping_mod_phase = ping_mod_phase + 2 * math.pi * ping_freq * ping_ratio / ctx.sample_rate
+        ping_phase     = ping_phase     + 2 * math.pi * ping_freq              / ctx.sample_rate
+        local index = ping_env * ping_idx_max
+        local ping  = ping_env * math.sin(ping_phase + index * math.sin(ping_mod_phase))
+        ping_env = ping_env * decay
+
+        samples[i] = drone + ping
     end
     return samples
 end
 
 s.opts = {
-    -- traversal_func overrides direction; keep direction commented out.
     -- traversal_func = diagonal,
-    sonify_func    = sonify,
-    -- 5e-6 s/pixel ≈ 1 sample/pixel at 44100 Hz — keeps audio duration sane.
-    -- spu       = 5e-6,
-    spu=1e-2,
-    frequency = { min = 50, max = 5000, scale = "exponential" },
-    cursor    = { width = 3, color = "#FF5000FF" },
-    waveform        = { height = 0.12, color = "#FFFFFFC8" },
-    oscilloscope    = { height = 0.10, window_samples = 2048, color = "#00FFB4DC" },
-    progress_bar    = { height = 0.01, color = "#FF8800FF" },
+    sonify_func    = sonify_chromatic,
+    spu            = 1e-2,
+    frequency      = { min = 80, max = 4000, scale = "exponential" },
+    cursor         = { width = 3, color = "#FF5000FF" },
+    waveform       = { height = 0.12, color = "#FFFFFFC8" },
+    oscilloscope   = { height = 0.10, window_samples = 2048, color = "#00FFB4DC" },
+    progress_bar   = { height = 0.01, color = "#FF8800FF" },
     antialiasing_level = 12,
 }
-
--- local random_file = random_file_from_dir("/home/neo/Gits/wallpapers/")
 
 s.on("sonify_complete", function()
     s.play()

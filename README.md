@@ -199,7 +199,13 @@ Use upvalues (locals captured by the closure) for persistent state like oscillat
 
 | Field | Type | Description |
 |---|---|---|
-| `brightness` | number | Pixel brightness `[0, 1]` |
+| `brightness` | number | Pixel luminance `[0, 1]` |
+| `r` | number | Red channel `[0, 1]` |
+| `g` | number | Green channel `[0, 1]` |
+| `b` | number | Blue channel `[0, 1]` |
+| `h` | number | Hue `[0, 360]` |
+| `s` | number | HSV saturation `[0, 1]` |
+| `v` | number | HSV value `[0, 1]` |
 | `x` | integer | Column index (or ring radius for circle modes) |
 | `y` | integer | Row index |
 | `width` | integer | Image width in pixels |
@@ -213,20 +219,47 @@ Use upvalues (locals captured by the closure) for persistent state like oscillat
 | `scale` | string | Frequency scale |
 | `sample_rate` | number | Sample rate in Hz |
 
-#### Example: FM synthesis
+#### Example: chromatic FM synthesis
+
+Uses hue and saturation to shape timbre — warm/red pixels get a near-harmonic FM ratio, cool/blue pixels get a metallic inharmonic one; saturation drives the modulation depth so grey pixels stay pure-sine.
 
 ```lua
-local phase, mod_phase = 0.0, 0.0
+local drone_phase    = 0.0
+local ping_phase     = 0.0
+local ping_mod_phase = 0.0
+local ping_env       = 0.0
+local ping_freq      = 440.0
+local ping_ratio     = 2.1
+local ping_idx_max   = 0.0
+local avg_bright     = 0.05
 
 sonopix.opts.sonify_func = function(ctx)
-    local carrier   = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
-    local mod_ratio = 1 + (ctx.strip_index / ctx.strip_count) * 3
-    local mod_depth = 200 * ctx.brightness
-    local samples   = {}
+    avg_bright = avg_bright * 0.97 + ctx.brightness * 0.03
+
+    local excess = ctx.brightness - avg_bright * 1.5
+    if excess > 0.02 then
+        ping_env     = math.min(1.0, ping_env + excess * 4.0)
+        ping_freq    = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
+        -- hue drives ratio: red(0°)→1.5 (harmonic), blue(240°)→~2.2 (metallic)
+        ping_ratio   = 1.5 + 0.7 * math.sin(math.rad(ctx.h * 0.5))
+        -- saturation drives FM depth: grey→pure sine, vivid colour→rich sidebands
+        ping_idx_max = ctx.s * 7.0
+    end
+
+    local drone_freq = ctx.fmin * (ctx.fmax / ctx.fmin) ^ (avg_bright * 0.3)
+    local decay      = math.exp(-1.0 / (ctx.sample_rate * 0.12))
+    local samples    = {}
     for i = 1, ctx.n_samples do
-        mod_phase  = mod_phase + 2 * math.pi * (carrier * mod_ratio) / ctx.sample_rate
-        phase      = phase     + 2 * math.pi * (carrier + mod_depth * math.sin(mod_phase)) / ctx.sample_rate
-        samples[i] = ctx.brightness * math.sin(phase)
+        drone_phase = drone_phase + 2 * math.pi * drone_freq / ctx.sample_rate
+        local drone = 0.06 * math.sin(drone_phase)
+
+        ping_mod_phase = ping_mod_phase + 2 * math.pi * ping_freq * ping_ratio / ctx.sample_rate
+        ping_phase     = ping_phase     + 2 * math.pi * ping_freq              / ctx.sample_rate
+        local index = ping_env * ping_idx_max
+        local ping  = ping_env * math.sin(ping_phase + index * math.sin(ping_mod_phase))
+        ping_env = ping_env * decay
+
+        samples[i] = drone + ping
     end
     return samples
 end
