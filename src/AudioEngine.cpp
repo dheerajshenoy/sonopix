@@ -36,7 +36,11 @@ AudioEngine::set_data(std::vector<float> &&audio_data, float sample_rate)
     m_dataf       = std::move(audio_data);
     m_data  = convert_to_int16(m_dataf);
 
-    std::vector<sf::SoundChannel> channelMap = {sf::SoundChannel::Mono};
+    std::vector<sf::SoundChannel> channelMap;
+    if (m_channel_count == 2)
+        channelMap = {sf::SoundChannel::FrontLeft, sf::SoundChannel::FrontRight};
+    else
+        channelMap = {sf::SoundChannel::Mono};
 
     if (!m_sound_buffer.loadFromSamples(m_data.data(), m_data.size(),
                                         m_channel_count, m_sample_rate,
@@ -73,7 +77,11 @@ AudioEngine::play_sample_at(std::size_t sample) noexcept
     const std::size_t start = std::min(sample, total - 1);
     const std::size_t end   = std::min(start + WINDOW, total);
 
-    std::vector<sf::SoundChannel> channelMap = {sf::SoundChannel::Mono};
+    std::vector<sf::SoundChannel> channelMap;
+    if (m_channel_count == 2)
+        channelMap = {sf::SoundChannel::FrontLeft, sf::SoundChannel::FrontRight};
+    else
+        channelMap = {sf::SoundChannel::Mono};
     if (!m_scrub_buffer.loadFromSamples(m_data.data() + start, end - start,
                                         m_channel_count, m_sample_rate,
                                         channelMap))

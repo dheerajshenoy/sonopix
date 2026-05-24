@@ -58,6 +58,9 @@ local function sonify_chromatic(ctx)
 
     local drone_freq = ctx.fmin * (ctx.fmax / ctx.fmin) ^ (avg_bright * 0.3)
     local decay      = math.exp(-1.0 / (ctx.sample_rate * 0.12))
+    -- x position → stereo pan: left edge = hard left, right edge = hard right
+    local pan_r      = ctx.x / ctx.width
+    local pan_l      = 1.0 - pan_r
 
     local samples = {}
     for i = 1, ctx.n_samples do
@@ -70,16 +73,24 @@ local function sonify_chromatic(ctx)
         local ping  = ping_env * math.sin(ping_phase + index * math.sin(ping_mod_phase))
         ping_env = ping_env * decay
 
-        samples[i] = drone + ping
+        local s = drone + ping
+        if ctx.channel_count == 2 then
+            samples[i * 2 - 1] = pan_l * s   -- left
+            samples[i * 2]     = pan_r * s   -- right
+        else
+            samples[i] = s
+        end
     end
     return samples
 end
 
 s.opts = {
     -- traversal_func = diagonal,
-    sonify_func    = sonify_chromatic,
-    spu            = 1e-2,
-    frequency      = { min = 80, max = 4000, scale = "exponential" },
+    -- sonify_func    = sonify_chromatic,
+    direction = "circle-outwards",
+    channel_count  = 2,
+    spu            = 1e-3,
+    frequency      = { min = 1000, max = 10000, scale = "linear" },
     cursor         = { width = 3, color = "#FF5000FF" },
     waveform       = { height = 0.12, color = "#FFFFFFC8" },
     oscilloscope   = { height = 0.10, window_samples = 2048, color = "#00FFB4DC" },
@@ -91,6 +102,6 @@ s.on("sonify_complete", function()
     s.play()
 end)
 
-if s.open_file("/home/neo/Downloads/space.webp") then
+if s.open_file("/home/neo/Downloads/gallileo-europa-moon-image-two-column.jpg") then
     s.sonify()
 end

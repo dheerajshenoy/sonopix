@@ -23,7 +23,6 @@
 
 ## UI
 
-- [ ] **Drag and drop** — drop an image onto the window to open it
 - [x] **Playback progress bar** — thin bar at the bottom of the window showing current position
 - [x] **Spectrum/waveform overlay** — show a live FFT or waveform of the generated audio
 - [ ] **Zoom and pan** — allow zooming into the image and panning while it plays
@@ -42,6 +41,5 @@
 
 ## Misc
 
-- [ ] **Session save/load** — persist current opts and script path to a JSON/TOML file
 - [ ] **Multiple images** — load a sequence and sonify them in order (slideshow mode)
 - [ ] **`--output` implementation** — finish the CLI flag that writes audio to disk

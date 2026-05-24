@@ -17,7 +17,8 @@ sonopix = sonopix or {}
 ---@field strip_index integer Playback-order index of this strip (0 = first strip played, direction-independent)
 ---@field strip_count integer Total number of strips
 ---@field t number Time in seconds since the start of audio
----@field n_samples integer Number of samples to generate for this strip
+---@field n_samples integer Frames to generate per strip (samples per channel); return n_samples * channel_count interleaved values
+---@field channel_count integer Number of audio channels (1 = mono, 2 = stereo)
 ---@field fmin number Minimum frequency in Hz
 ---@field fmax number Maximum frequency in Hz
 ---@field scale "linear"|"log"|"exponential" Frequency mapping scale

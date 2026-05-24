@@ -36,8 +36,9 @@ struct SonifyContext
     int strip_count;
 
     // Timing info for the generated audio
-    float t;       // time in seconds since start of audio
-    int   n_samples; // number of samples to generate for this strip
+    float t;         // time in seconds since start of audio
+    int   n_samples; // frames to generate (samples per channel); return n_samples * channel_count interleaved
+    int   channel_count; // 1 = mono, 2 = stereo
 
     // Frequency mapping parameters
     sonify::FreqScale freq_scale;
@@ -125,7 +126,9 @@ sine()
             phase += two_pi * freq / ctx.sample_rate;
             if (phase >= two_pi)
                 phase -= two_pi;
-            out.push_back(b * std::sin(phase));
+            const float s = b * std::sin(phase);
+            for (int ch = 0; ch < ctx.channel_count; ++ch)
+                out.push_back(s);
         }
     };
 }
@@ -185,7 +188,7 @@ public:
         const int spu   = std::max(1, static_cast<int>(m_sample_rate * m_secs_per_unit));
         const int total = static_cast<int>(pixels.size());
         m_audio_data.clear();
-        m_audio_data.reserve(static_cast<std::size_t>(total) * spu);
+        m_audio_data.reserve(static_cast<std::size_t>(total) * spu * m_channel_count);
         for (int i = 0; i < total; ++i)
         {
             const auto [x, y] = pixels[i];
@@ -199,6 +202,9 @@ public:
 
     inline void set_sonify_func(const SonifyFunc &func) noexcept { m_sonify_func = func; }
     const SonifyFunc &sonify_func() const noexcept               { return m_sonify_func; }
+
+    inline void set_channel_count(int ch) noexcept { m_channel_count = std::max(1, ch); }
+    inline int  channel_count() const noexcept     { return m_channel_count; }
 
     void set_roi(int x, int y, int w, int h) noexcept
     {
@@ -258,6 +264,7 @@ public:
 
 private:
     float m_sample_rate   = 44100.0f;
+    int   m_channel_count = 1;
     RawImage m_img;
     Direction m_direction = Direction::LEFT_TO_RIGHT;
     float m_secs_per_unit = 0.001f;
@@ -340,25 +347,27 @@ private:
                     int strip_index, int strip_count)
     {
         SonifyContext ctx{
-            .sample_rate = m_sample_rate,
-            .brightness  = d.brightness,
-            .r           = d.r,
-            .g           = d.g,
-            .b           = d.b,
-            .h           = d.h,
-            .s           = d.s,
-            .v           = d.v,
-            .x           = x,
-            .y           = y,
-            .width       = w,
-            .height      = h,
-            .strip_index = strip_index,
-            .strip_count = strip_count,
-            .t           = static_cast<float>(m_audio_data.size()) / m_sample_rate,
-            .n_samples   = spu,
-            .freq_scale  = m_freq_map.scale,
-            .fmin        = m_freq_map.min,
-            .fmax        = m_freq_map.max,
+            .sample_rate   = m_sample_rate,
+            .brightness    = d.brightness,
+            .r             = d.r,
+            .g             = d.g,
+            .b             = d.b,
+            .h             = d.h,
+            .s             = d.s,
+            .v             = d.v,
+            .x             = x,
+            .y             = y,
+            .width         = w,
+            .height        = h,
+            .strip_index   = strip_index,
+            .strip_count   = strip_count,
+            .t             = static_cast<float>(m_audio_data.size())
+                             / (m_sample_rate * m_channel_count),
+            .n_samples     = spu,
+            .channel_count = m_channel_count,
+            .freq_scale    = m_freq_map.scale,
+            .fmin          = m_freq_map.min,
+            .fmax          = m_freq_map.max,
         };
         m_sonify_func(ctx, m_audio_data);
     }
@@ -371,7 +380,7 @@ private:
         const auto [x0, y0, x1, y1] = effective_bounds();
         const int count = x1 - x0;
         m_audio_data.clear();
-        m_audio_data.reserve(static_cast<std::size_t>(count) * spu);
+        m_audio_data.reserve(static_cast<std::size_t>(count) * spu * m_channel_count);
         for (int i = 0; i < count; ++i)
             emit_strip(column_data(x0 + i, y0, y1), x0 + i, y0, w, h, spu, i, count);
     }
@@ -384,7 +393,7 @@ private:
         const auto [x0, y0, x1, y1] = effective_bounds();
         const int count = x1 - x0;
         m_audio_data.clear();
-        m_audio_data.reserve(static_cast<std::size_t>(count) * spu);
+        m_audio_data.reserve(static_cast<std::size_t>(count) * spu * m_channel_count);
         for (int i = 0; i < count; ++i)
             emit_strip(column_data(x1 - 1 - i, y0, y1), x1 - 1 - i, y0, w, h, spu, i, count);
     }
@@ -397,7 +406,7 @@ private:
         const auto [x0, y0, x1, y1] = effective_bounds();
         const int count = y1 - y0;
         m_audio_data.clear();
-        m_audio_data.reserve(static_cast<std::size_t>(count) * spu);
+        m_audio_data.reserve(static_cast<std::size_t>(count) * spu * m_channel_count);
         for (int i = 0; i < count; ++i)
             emit_strip(row_data(y0 + i, x0, x1), x0, y0 + i, w, h, spu, i, count);
     }
@@ -410,7 +419,7 @@ private:
         const auto [x0, y0, x1, y1] = effective_bounds();
         const int count = y1 - y0;
         m_audio_data.clear();
-        m_audio_data.reserve(static_cast<std::size_t>(count) * spu);
+        m_audio_data.reserve(static_cast<std::size_t>(count) * spu * m_channel_count);
         for (int i = 0; i < count; ++i)
             emit_strip(row_data(y1 - 1 - i, x0, x1), x0, y1 - 1 - i, w, h, spu, i, count);
     }
@@ -431,7 +440,7 @@ private:
         constexpr float two_pi = 6.28318530718f;
 
         m_audio_data.clear();
-        m_audio_data.reserve(static_cast<std::size_t>(num_strips) * spu);
+        m_audio_data.reserve(static_cast<std::size_t>(num_strips) * spu * m_channel_count);
 
         const auto [bx0, by0, bx1, by1] = effective_bounds();
 
@@ -501,7 +510,7 @@ private:
             }
 
         m_audio_data.clear();
-        m_audio_data.reserve(static_cast<std::size_t>(max_r + 1) * spu);
+        m_audio_data.reserve(static_cast<std::size_t>(max_r + 1) * spu * m_channel_count);
 
         const int strip_count = max_r + 1;
         for (int i = 0; i <= max_r; ++i)

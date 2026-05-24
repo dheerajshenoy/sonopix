@@ -212,12 +212,43 @@ Use upvalues (locals captured by the closure) for persistent state like oscillat
 | `height` | integer | Image height in pixels |
 | `strip_index` | integer | Playback-order index of the current strip (0 = first) |
 | `strip_count` | integer | Total number of strips |
-| `n_samples` | integer | Number of samples to generate for this strip |
+| `n_samples` | integer | Frames to generate for this strip (samples per channel) |
+| `channel_count` | integer | Number of audio channels (`1` = mono, `2` = stereo) |
 | `t` | number | Time in seconds since the start of audio (at strip start) |
 | `fmin` | number | Minimum frequency in Hz |
 | `fmax` | number | Maximum frequency in Hz |
 | `scale` | string | Frequency scale |
 | `sample_rate` | number | Sample rate in Hz |
+
+#### Stereo output
+
+Set `sonopix.opts.channel_count = 2` to enable stereo. The function must then return `n_samples * 2` interleaved samples in `[L1, R1, L2, R2, ...]` order. Use `ctx.channel_count` to branch so the same function works in both mono and stereo:
+
+```lua
+sonopix.opts.channel_count = 2
+
+local phase = 0.0
+
+sonopix.opts.sonify_func = function(ctx)
+    local freq    = ctx.fmin * (ctx.fmax / ctx.fmin) ^ ctx.brightness
+    local pan_r   = ctx.x / ctx.width     -- 0 (left edge) → 1 (right edge)
+    local pan_l   = 1.0 - pan_r
+    local samples = {}
+    for i = 1, ctx.n_samples do
+        phase = phase + 2 * math.pi * freq / ctx.sample_rate
+        local s = ctx.brightness * math.sin(phase)
+        if ctx.channel_count == 2 then
+            samples[i * 2 - 1] = pan_l * s   -- left
+            samples[i * 2]     = pan_r * s   -- right
+        else
+            samples[i] = s
+        end
+    end
+    return samples
+end
+```
+
+The cursor, waveform playhead, and progress bar all account for channel count automatically.
 
 #### Example: chromatic FM synthesis
 

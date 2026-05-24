@@ -355,6 +355,7 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
         if (count <= 0)
             return luaL_error(L, "Invalid channel count: %d", count);
         window->audio_engine()->set_channel_count(count);
+        window->sonifier()->set_channel_count(count);
         return 0;
     }
 
@@ -495,13 +496,17 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
                 scale_str = "exponential";
             lua_pushstring(Lc, scale_str);
             lua_setfield(Lc, -2, "scale");
+            lua_pushinteger(Lc, ctx.channel_count);
+            lua_setfield(Lc, -2, "channel_count");
+
+            const int total_out = ctx.n_samples * ctx.channel_count;
 
             if (lua_pcall(Lc, 1, 1, 0) != LUA_OK)
             {
                 fprintf(stderr, "sonify_func error: %s\n",
                         lua_tostring(Lc, -1));
                 lua_pop(Lc, 1);
-                for (int i = 0; i < ctx.n_samples; ++i)
+                for (int i = 0; i < total_out; ++i)
                     out.push_back(0.0f);
                 return;
             }
@@ -509,12 +514,12 @@ handle_lua_option(lua_State *L, const char *key, const char *value) noexcept
             if (!lua_istable(Lc, -1))
             {
                 lua_pop(Lc, 1);
-                for (int i = 0; i < ctx.n_samples; ++i)
+                for (int i = 0; i < total_out; ++i)
                     out.push_back(0.0f);
                 return;
             }
 
-            for (int i = 1; i <= ctx.n_samples; ++i)
+            for (int i = 1; i <= total_out; ++i)
             {
                 lua_rawgeti(Lc, -1, i);
                 out.push_back(static_cast<float>(lua_tonumber(Lc, -1)));

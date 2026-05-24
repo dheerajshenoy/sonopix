@@ -1208,7 +1208,8 @@ MainWindow::move_cursor() noexcept
         = std::max(1, static_cast<int>(m_sonifier->sample_rate()
                                        * m_sonifier->secs_per_unit()));
     const int strip
-        = static_cast<int>(sample_idx / static_cast<std::size_t>(spu));
+        = static_cast<int>(sample_idx / static_cast<std::size_t>(
+              spu * m_sonifier->channel_count()));
 
     // Custom traversal: look up pixel from m_traversal_pixels
     if (m_using_custom_traversal)
