@@ -665,7 +665,9 @@ MainWindow::build_waveform() noexcept
     auto ph = [&](float frac) { return frac * win_h; };
     const float wave_height = ph(m_config.waveform.height);
     const float scale       = m_sprite.getScale().x;
-    const float wave_width  = m_tex_size.x * scale;
+    const int   sw          = m_sonifier->raw_image().width;
+    const float ow          = sw > 0 ? static_cast<float>(sw) : m_tex_size.x;
+    const float wave_width  = ow * scale;
     const float wave_x      = m_sprite.getPosition().x - wave_width * 0.5f;
     const float osc_height  = m_config.oscilloscope.visible ? ph(m_config.oscilloscope.height) : 0.f;
     const float bar_height  = m_config.progress_bar.visible ? ph(m_config.progress_bar.height) : 0.f;
@@ -715,7 +717,9 @@ MainWindow::update_waveform() noexcept
     if (total == 0)
         return;
 
-    const float wave_width = m_tex_size.x * m_sprite.getScale().x;
+    const int   sw         = m_sonifier->raw_image().width;
+    const float ow         = sw > 0 ? static_cast<float>(sw) : m_tex_size.x;
+    const float wave_width = ow * m_sprite.getScale().x;
     const float wave_x     = m_sprite.getPosition().x - wave_width * 0.5f;
     const float progress
         = static_cast<float>(m_last_sample_index) / static_cast<float>(total);
@@ -846,12 +850,15 @@ MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
         case sonify::Direction::LEFT_TO_RIGHT:
         case sonify::Direction::RIGHT_TO_LEFT:
         {
+            const int   sw  = m_sonifier->raw_image().width;
+            const int   sh  = m_sonifier->raw_image().height;
+            const float ow  = sw > 0 ? static_cast<float>(sw) : m_tex_size.x;
+            const float oh  = sh > 0 ? static_cast<float>(sh) : m_tex_size.y;
+            const sf::Vector2f pos = m_sprite.getPosition();
             auto rect = std::make_unique<sf::RectangleShape>();
             rect->setFillColor(m_config.cursor.color);
-            rect->setSize({m_config.cursor.width, m_tex_size.y * scale});
-            rect->setPosition(
-                m_sprite.getTransform().transformPoint({0.f, 0.f}));
-            rect->setRotation(sf::degrees(m_config.image_rotation));
+            rect->setSize({m_config.cursor.width, oh * scale});
+            rect->setPosition({pos.x - ow * 0.5f * scale, pos.y - oh * 0.5f * scale});
             m_cursor = std::move(rect);
         }
         break;
@@ -859,12 +866,15 @@ MainWindow::init_cursor(float scale, sf::Vector2<float> position) noexcept
         case sonify::Direction::TOP_TO_BOTTOM:
         case sonify::Direction::BOTTOM_TO_TOP:
         {
+            const int   sw  = m_sonifier->raw_image().width;
+            const int   sh  = m_sonifier->raw_image().height;
+            const float ow  = sw > 0 ? static_cast<float>(sw) : m_tex_size.x;
+            const float oh  = sh > 0 ? static_cast<float>(sh) : m_tex_size.y;
+            const sf::Vector2f pos = m_sprite.getPosition();
             auto rect = std::make_unique<sf::RectangleShape>();
             rect->setFillColor(m_config.cursor.color);
-            rect->setSize({m_tex_size.x * scale, m_config.cursor.width});
-            rect->setPosition(
-                m_sprite.getTransform().transformPoint({0.f, 0.f}));
-            rect->setRotation(sf::degrees(m_config.image_rotation));
+            rect->setSize({ow * scale, m_config.cursor.width});
+            rect->setPosition({pos.x - ow * 0.5f * scale, pos.y - oh * 0.5f * scale});
             m_cursor = std::move(rect);
         }
         break;
@@ -951,19 +961,29 @@ MainWindow::sync_shader() noexcept
 void
 MainWindow::snapshot_shaded_image() noexcept
 {
-    const int w = static_cast<int>(m_tex_size.x);
-    const int h = static_cast<int>(m_tex_size.y);
-    if (w <= 0 || h <= 0 || m_tex.getSize().x == 0)
+    const float fw = m_tex_size.x;
+    const float fh = m_tex_size.y;
+    if (fw <= 0 || fh <= 0 || m_tex.getSize().x == 0)
         return;
 
+    // Compute AABB of the rotated image so the full rotated content is captured.
+    const float rad   = m_config.image_rotation * (3.14159265f / 180.f);
+    const float cosA  = std::abs(std::cos(rad));
+    const float sinA  = std::abs(std::sin(rad));
+    const int   out_w = static_cast<int>(std::ceil(fw * cosA + fh * sinA));
+    const int   out_h = static_cast<int>(std::ceil(fw * sinA + fh * cosA));
+
     sf::RenderTexture rt;
-    if (!rt.resize({static_cast<unsigned>(w), static_cast<unsigned>(h)}))
+    if (!rt.resize({static_cast<unsigned>(out_w), static_cast<unsigned>(out_h)}))
         return;
 
     rt.clear(sf::Color::Transparent);
 
-    // Render at native 1:1 size so pixel indices match the sonifier's grid.
     sf::Sprite tmp(m_tex);
+    tmp.setOrigin({fw * 0.5f, fh * 0.5f});
+    tmp.setRotation(sf::degrees(m_config.image_rotation));
+    tmp.setPosition({out_w * 0.5f, out_h * 0.5f});
+
     if (m_shader_active)
     {
         sf::RenderStates states;
@@ -975,14 +995,14 @@ MainWindow::snapshot_shaded_image() noexcept
 
     rt.display();
 
-    const sf::Image shaded    = rt.getTexture().copyToImage();
-    const std::uint8_t *data  = shaded.getPixelsPtr();
+    const sf::Image shaded   = rt.getTexture().copyToImage();
+    const std::uint8_t *data = shaded.getPixelsPtr();
     if (!data)
         return;
 
     constexpr int channels = 4;
-    auto img_data = sonify::normalize_u8_data(data, w * h * channels);
-    m_sonifier->set_raw_image(w, h, channels, w * 4, std::move(img_data));
+    auto img_data = sonify::normalize_u8_data(data, out_w * out_h * channels);
+    m_sonifier->set_raw_image(out_w, out_h, channels, out_w * 4, std::move(img_data));
 }
 
 // Reset all script-controlled state to defaults before a hot-reload so that
@@ -1313,36 +1333,38 @@ MainWindow::move_cursor() noexcept
         case sonify::Direction::LEFT_TO_RIGHT:
         case sonify::Direction::RIGHT_TO_LEFT:
         {
-            const int w       = static_cast<int>(m_tex_size.x);
+            const int   sw    = m_sonifier->raw_image().width;
+            const int   sh    = m_sonifier->raw_image().height;
+            const float ow    = sw > 0 ? static_cast<float>(sw) : m_tex_size.x;
+            const float oh    = sh > 0 ? static_cast<float>(sh) : m_tex_size.y;
             const float scale = m_sprite.getScale().x;
-            const float col
-                = m_config.direction == sonify::Direction::RIGHT_TO_LEFT
-                      ? static_cast<float>(w - strip)
-                      : static_cast<float>(strip);
+            const float col   = m_config.direction == sonify::Direction::RIGHT_TO_LEFT
+                                    ? ow - 1.f - static_cast<float>(strip)
+                                    : static_cast<float>(strip);
+            const sf::Vector2f pos = m_sprite.getPosition();
             auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
-            rect->setSize({m_config.cursor.width,
-                           static_cast<float>(m_tex_size.y) * scale});
-            rect->setPosition(
-                m_sprite.getTransform().transformPoint({col, 0.f}));
-            rect->setRotation(sf::degrees(m_config.image_rotation));
+            rect->setSize({m_config.cursor.width, oh * scale});
+            rect->setPosition({pos.x + (col - ow * 0.5f) * scale,
+                               pos.y - oh * 0.5f * scale});
         }
         break;
 
         case sonify::Direction::TOP_TO_BOTTOM:
         case sonify::Direction::BOTTOM_TO_TOP:
         {
-            const int h       = static_cast<int>(m_tex_size.y);
+            const int   sw    = m_sonifier->raw_image().width;
+            const int   sh    = m_sonifier->raw_image().height;
+            const float ow    = sw > 0 ? static_cast<float>(sw) : m_tex_size.x;
+            const float oh    = sh > 0 ? static_cast<float>(sh) : m_tex_size.y;
             const float scale = m_sprite.getScale().y;
-            const float row
-                = m_config.direction == sonify::Direction::BOTTOM_TO_TOP
-                      ? static_cast<float>(h - strip)
-                      : static_cast<float>(strip);
+            const float row   = m_config.direction == sonify::Direction::BOTTOM_TO_TOP
+                                    ? oh - 1.f - static_cast<float>(strip)
+                                    : static_cast<float>(strip);
+            const sf::Vector2f pos = m_sprite.getPosition();
             auto *rect = static_cast<sf::RectangleShape *>(m_cursor.get());
-            rect->setSize({static_cast<float>(m_tex_size.x) * scale,
-                           m_config.cursor.width});
-            rect->setPosition(
-                m_sprite.getTransform().transformPoint({0.f, row}));
-            rect->setRotation(sf::degrees(m_config.image_rotation));
+            rect->setSize({ow * scale, m_config.cursor.width});
+            rect->setPosition({pos.x - ow * 0.5f * scale,
+                               pos.y + (row - oh * 0.5f) * scale});
         }
         break;
 

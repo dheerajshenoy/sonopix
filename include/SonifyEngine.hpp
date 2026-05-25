@@ -318,28 +318,40 @@ private:
     StripData column_data(int x, int y0, int y1) const
     {
         float sr = 0.f, sg = 0.f, sb = 0.f;
-        const float n = static_cast<float>(y1 - y0);
+        int count = 0;
         for (int y = y0; y < y1; ++y)
         {
             const float *px = &m_img.data[y * m_img.stride + x * m_img.channels];
+            if (m_img.channels >= 4 && px[3] < 0.5f)
+                continue;
             sr += px[0];
             sg += (m_img.channels >= 3) ? px[1] : px[0];
             sb += (m_img.channels >= 3) ? px[2] : px[0];
+            ++count;
         }
+        if (count == 0)
+            return make_strip_data(0.f, 0.f, 0.f);
+        const float n = static_cast<float>(count);
         return make_strip_data(sr / n, sg / n, sb / n);
     }
 
     StripData row_data(int y, int x0, int x1) const
     {
         float sr = 0.f, sg = 0.f, sb = 0.f;
-        const float n = static_cast<float>(x1 - x0);
+        int count = 0;
         for (int x = x0; x < x1; ++x)
         {
             const float *px = &m_img.data[y * m_img.stride + x * m_img.channels];
+            if (m_img.channels >= 4 && px[3] < 0.5f)
+                continue;
             sr += px[0];
             sg += (m_img.channels >= 3) ? px[1] : px[0];
             sb += (m_img.channels >= 3) ? px[2] : px[0];
+            ++count;
         }
+        if (count == 0)
+            return make_strip_data(0.f, 0.f, 0.f);
+        const float n = static_cast<float>(count);
         return make_strip_data(sr / n, sg / n, sb / n);
     }
 

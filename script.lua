@@ -84,30 +84,69 @@ local function sonify_chromatic(ctx)
     return samples
 end
 
+local function sonify_simple(ctx)
+    local freq = ctx.fmin + (ctx.fmax - ctx.fmin) ^ ctx.brightness
+    local samples = {}
+    for i = 1, ctx.n_samples do
+        local phase_mod = 2 * ctx.h * math.pi
+        local om = 2 * math.pi * freq
+        local t = (i - 1)
+        local so = math.cos(om * t + phase_mod)
+        if ctx.channel_count == 2 then
+            samples[i * 2 - 1] = so
+            samples[i * 2]     = so
+        else
+            samples[i] = so
+        end
+    end
+    return samples
+end
+
+---@param ctx SonifyContext
+local function sonify_pan(ctx)
+    local samples = {}
+    local freq = ctx.fmin + (ctx.fmax - ctx.fmin) * ctx.brightness
+    local om = 2 * math.pi * freq
+    if ctx.channel_count == 2 then
+        -- Simple linear pan derived from R and B channels
+        local pan_left  = ctx.r / (ctx.r + ctx.b + 1e-5)
+        local pan_right = ctx.b / (ctx.r + ctx.b + 1e-5)
+
+        for i = 1, ctx.n_samples do
+            local so = math.cos(om * (i - 1))
+            samples[i * 2 - 1] = so * pan_left
+            samples[i * 2]     = so * pan_right
+        end
+    end
+
+    return samples
+end
+
 s.opts = {
     -- traversal_func = diagonal,
-    -- sonify_func    = sonify_chromatic,
-    amplitude = 0.5,
+    sonify_func    = sonify_pan,
+    image_rotation = 45,
+    amplitude = 1,
     fps = 144,
     loop = true,
     direction = "left-to-right",
     channel_count  = 2,
-    spu            = 1e-3,
+    spu            = 1e-2,
     image_effects = {
-        invert = true,
+        invert = false,
     },
-    frequency      = { min = 99, max = 100, scale = "linear" },
+    frequency      = { min = 220, max = 880, scale = "linear" },
     cursor         = { width = 3, color = "#FF5000FF" },
     waveform       = { height = 0.12, color = "#FFFFFFC8" },
     oscilloscope   = { height = 0.10, window_samples = 2048, color = "#00FFB4DC" },
     progress_bar   = { height = 0.01, color = "#FF8800FF" },
-    antialiasing_level = 12,
+    -- antialiasing_level = 12,
 }
 
 s.on("sonify_complete", function()
     s.play()
 end)
 
-if s.open_file("/home/neo/Downloads/vbar.png") then
+if s.open_file("/home/dheeraj/Downloads/testcircle.png") then
     s.sonify()
 end
